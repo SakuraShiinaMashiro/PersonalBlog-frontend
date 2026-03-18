@@ -1,5 +1,21 @@
 import request from '@/utils/request'
 
+export interface BangumiSubject {
+  id: number
+  name: string
+  name_cn: string
+  summary: string
+  images: {
+    large: string
+    common: string
+    medium: string
+    small: string
+    grid: string
+  }
+  eps: number
+  date: string
+}
+
 export interface AnimeSubject {
   id: number
   bgmId: number
@@ -22,18 +38,34 @@ export interface AnimeListItem {
 }
 
 export const animeApi = {
+  /**
+   * 搜索 Bangumi 番剧
+   * @param keyword 关键词
+   */
   search(keyword: string) {
-    return request.get<any, any[]>('/anime/search', { params: { keyword } })
+    return request.get<any, BangumiSubject[]>('/anime/search', { params: { keyword } })
   },
+  /**
+   * 导入番剧元数据
+   */
   import(data: { bgmId: number; airYear: number; airSeason: number }) {
     return request.post('/anime/import', data)
   },
+  /**
+   * 获取番剧列表
+   */
   getList(year?: number, season?: number) {
     return request.get<any, AnimeListItem[]>('/anime/list', { params: { year, season } })
   },
+  /**
+   * 切换集数观看状态
+   */
   toggle(animeId: number, episodeIndex: number) {
     return request.post('/anime/toggle', { animeId, episodeIndex })
   },
+  /**
+   * 更新番剧状态
+   */
   updateStatus(animeId: number, status: number) {
     return request.put('/anime/status', { animeId, status })
   }
