@@ -5,7 +5,16 @@ export default {
     "./src/**/*.{vue,js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        brand: '#35bfab',
+        primary: '#334f52',
+        secondary: '#7b888e',
+      },
+      fontFamily: {
+        display: ['"Averia Gruesa Libre"', 'cursive'],
+      },
+    },
   },
   plugins: [],
 }
