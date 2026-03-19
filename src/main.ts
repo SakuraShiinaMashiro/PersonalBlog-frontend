@@ -20,6 +20,11 @@ const router = createRouter({
       path: '/write',
       name: 'write',
       component: () => import('./views/WriteView.vue')
+    },
+    {
+      path: '/note/:id',
+      name: 'noteDetail',
+      component: () => import('./views/NoteDetailView.vue')
     }
   ]
 })

@@ -2,7 +2,7 @@ import request from '@/utils/request'
 
 // ======== Interfaces ========
 
-export interface ContentSaveParams {
+export interface NoteSaveParams {
   id?: number
   title: string
   summary?: string
@@ -13,7 +13,7 @@ export interface ContentSaveParams {
   tags?: string[]
 }
 
-export interface ContentListItem {
+export interface NoteListItem {
   id: number
   title: string
   summary: string
@@ -26,7 +26,7 @@ export interface ContentListItem {
   tags: string[]
 }
 
-export interface ContentDetail {
+export interface NoteDetail {
   id: number
   title: string
   content: string
@@ -48,25 +48,25 @@ export interface PageData<T> {
 
 // ======== API ========
 
-export const contentApi = {
+export const noteApi = {
   /**
-   * 保存或更新文章
+   * 保存或更新笔记
    */
-  save(data: ContentSaveParams) {
-    return request.post<any, number>('/content/save', data)
+  save(data: NoteSaveParams) {
+    return request.post<any, number>('/note/save', data)
   },
 
   /**
-   * 获取文章分页列表
+   * 获取笔记分页列表
    */
   getList(params: { pageNum?: number; pageSize?: number; moduleType?: number; status?: number }) {
-    return request.get<any, PageData<ContentListItem>>('/content/list', { params })
+    return request.get<any, PageData<NoteListItem>>('/note/list', { params })
   },
 
   /**
-   * 获取文章详情（含 Markdown 正文）
+   * 获取笔记详情（含 Markdown 正文）
    */
   getDetail(id: number) {
-    return request.get<any, ContentDetail>(`/content/${id}`)
+    return request.get<any, NoteDetail>(`/note/${id}`)
   }
 }

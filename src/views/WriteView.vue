@@ -12,10 +12,10 @@
             <ArrowLeft :size="18" /> 返回
           </button>
           <input
-            v-model="articleForm.title"
+            v-model="noteForm.title"
             type="text"
             class="title-input"
-            placeholder="输入文章标题..."
+            placeholder="输入笔记标题..."
           />
         </div>
 
@@ -34,15 +34,15 @@
             <h3 class="meta-title">分类</h3>
             <div class="type-radios">
               <label class="radio-label">
-                <input type="radio" v-model="articleForm.moduleType" :value="0" />
+                <input type="radio" v-model="noteForm.moduleType" :value="0" />
                 <span>学习记录</span>
               </label>
               <label class="radio-label">
-                <input type="radio" v-model="articleForm.moduleType" :value="1" />
+                <input type="radio" v-model="noteForm.moduleType" :value="1" />
                 <span>生活随笔</span>
               </label>
               <label class="radio-label">
-                <input type="radio" v-model="articleForm.moduleType" :value="2" />
+                <input type="radio" v-model="noteForm.moduleType" :value="2" />
                 <span>兴趣使然</span>
               </label>
             </div>
@@ -51,7 +51,7 @@
           <div class="meta-section">
             <h3 class="meta-title">标签</h3>
             <div class="tags-container">
-              <div v-for="(tag, index) in articleForm.tags" :key="index" class="tag-chip">
+              <div v-for="(tag, index) in noteForm.tags" :key="index" class="tag-chip">
                 {{ tag }}
                 <X :size="12" class="tag-close" @click="removeTag(index)" />
               </div>
@@ -68,13 +68,13 @@
           <div class="meta-section">
             <h3 class="meta-title">封面图片</h3>
             <input
-              v-model="articleForm.coverUrl"
+              v-model="noteForm.coverUrl"
               type="text"
               class="cover-input"
               placeholder="输入图片URL (可选)"
             />
-            <div v-if="articleForm.coverUrl" class="cover-preview">
-              <img :src="articleForm.coverUrl" alt="Cover" />
+            <div v-if="noteForm.coverUrl" class="cover-preview">
+              <img :src="noteForm.coverUrl" alt="Cover" />
             </div>
           </div>
         </div>
@@ -82,7 +82,7 @@
         <!-- ========== 主体：Markdown 编辑器 ========== -->
         <div class="editor-card card">
           <MdEditor
-            v-model="articleForm.content"
+            v-model="noteForm.content"
             class="md-editor"
             :toolbars="toolbars"
             @onSave="handlePublish(0)"
@@ -99,11 +99,11 @@ import { useRouter } from 'vue-router'
 import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ArrowLeft, Send, X } from 'lucide-vue-next'
-import { contentApi, ContentSaveParams } from '@/api/content'
+import { noteApi, NoteSaveParams } from '@/api/note'
 
 const router = useRouter()
 
-const articleForm = reactive<ContentSaveParams>({
+const noteForm = reactive<NoteSaveParams>({
   title: '',
   content: '',
   moduleType: 0,
@@ -120,28 +120,27 @@ const toolbars: ToolbarNames[] = [
 
 const addTag = () => {
   const tag = newTag.value.trim()
-  if (tag && !articleForm.tags!.includes(tag)) {
-    articleForm.tags!.push(tag)
+  if (tag && !noteForm.tags!.includes(tag)) {
+    noteForm.tags!.push(tag)
   }
   newTag.value = ''
 }
 
 const removeTag = (index: number) => {
-  articleForm.tags!.splice(index, 1)
+  noteForm.tags!.splice(index, 1)
 }
 
 const handlePublish = async (status: number) => {
-  if (!articleForm.title.trim()) {
+  if (!noteForm.title.trim()) {
     alert('请输入标题')
     return
   }
-  if (!articleForm.content.trim()) {
+  if (!noteForm.content.trim()) {
     alert('请输入正文')
-    return
   }
-  articleForm.status = status
+  noteForm.status = status
   try {
-    await contentApi.save(articleForm)
+    await noteApi.save(noteForm)
     alert(status === 1 ? '发布成功' : '草稿保存成功')
     router.push('/') // MVP版先跳回首页
   } catch (e) {

@@ -222,7 +222,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { animeApi, AnimeListItem, BangumiSubject } from '@/api/anime'
-import { Plus, Search, X } from 'lucide-vue-next'
+import { Plus, Search, X, Home } from 'lucide-vue-next'
 
 const selectedYear = ref(new Date().getFullYear().toString())
 const selectedSeason = ref(Math.floor(new Date().getMonth() / 3) + 1)

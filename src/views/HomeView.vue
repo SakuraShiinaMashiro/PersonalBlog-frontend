@@ -15,7 +15,7 @@
               <span>C</span>
             </div>
             <div class="user-info">
-              <span class="user-name">CZF</span>
+              <span class="user-name">Challenge</span>
               <span class="user-badge">开发中</span>
             </div>
           </div>
@@ -37,7 +37,7 @@
               <Sparkles :size="15" />
               <span>兴趣使然</span>
             </a>
-            <a href="javascript:void(0)" @click="showDevAlert" class="nav-item">
+            <a href="javascript:void(0)" @click="showAboutModal = true" class="nav-item">
               <Info :size="15" />
               <span>关于网站</span>
             </a>
@@ -47,22 +47,22 @@
         <!-- 最新文章卡 -->
         <div class="card latest-card">
           <div class="latest-title">最新文章</div>
-          <div v-if="latestArticles.length === 0" class="latest-empty">
+          <div v-if="latestNotes.length === 0" class="latest-empty">
             暂无文章
           </div>
-          <div v-for="article in latestArticles" :key="article.id" class="latest-item">
-            <template v-if="article.cover">
-              <img :src="article.cover" alt="cover" class="latest-cover" />
+          <router-link v-for="note in latestNotes" :key="note.id" :to="`/note/${note.id}`" class="latest-item">
+            <template v-if="note.cover">
+              <img :src="note.cover" alt="cover" class="latest-cover" />
             </template>
             <template v-else>
-              <div class="latest-cover placeholder-cover">{{ article.title.charAt(0) }}</div>
+              <div class="latest-cover placeholder-cover">{{ note.title.charAt(0) }}</div>
             </template>
             <div class="latest-info">
-              <div class="latest-name">{{ article.title }}</div>
-              <div class="latest-meta">{{ article.tag }}</div>
-              <div class="latest-date">{{ article.date }}</div>
+              <div class="latest-name">{{ note.title }}</div>
+              <div class="latest-meta">{{ note.tag }}</div>
+              <div class="latest-date">{{ note.date }}</div>
             </div>
-          </div>
+          </router-link>
         </div>
       </div>
 
@@ -114,7 +114,7 @@
 
       <!-- ==================== 右列 ==================== -->
       <div class="col-right">
-        <!-- 写文章按钮 -->
+        <!-- 写笔记按钮 -->
         <div class="card write-card">
           <router-link to="/write" class="write-btn">
             <Edit3 :size="18" />
@@ -175,6 +175,19 @@
       </div>
 
     </div>
+
+    <!-- 关于网站 弹窗 -->
+    <div class="modal-overlay" v-if="showAboutModal" @click.self="showAboutModal = false">
+      <div class="modal-card card">
+        <h3 class="modal-title">关于网站</h3>
+        <div class="modal-content">
+          <p>这是一个基于 Vue 3 + Tailwind CSS 和 Spring Boot 开发的个人数字花园。</p>
+          <p>在这里，我会记录学习笔记、生活随笔，以及展示我的兴趣爱好体验。</p>
+          <p>持续开发中，敬请期待更多功能！</p>
+        </div>
+        <button class="modal-close-btn" @click="showAboutModal = false">关闭</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -184,12 +197,14 @@ import {
   BookOpen, PenLine, Sparkles, Tv, Info,
   Edit3, Grid, Github, Youtube, Mail, Heart
 } from 'lucide-vue-next'
-import { contentApi } from '@/api/content'
+import { noteApi } from '@/api/note'
 import { animeApi } from '@/api/anime'
 
 const showDevAlert = () => {
   alert('该板块正在开发中，敬请期待！')
 }
+
+const showAboutModal = ref(false)
 
 // ======= 时钟 =======
 const currentTime = ref('')
@@ -247,16 +262,16 @@ const animeStats = ref({
   totalEps: 0
 })
 
-const latestArticles = ref<any[]>([])
+const latestNotes = ref<any[]>([])
 
-const fetchLatestArticles = async () => {
+const fetchLatestNotes = async () => {
   try {
-    const res = await contentApi.getList({ pageNum: 1, pageSize: 3 })
+    const res = await noteApi.getList({ pageNum: 1, pageSize: 3 })
     const types = ['学习记录', '生活随笔', '兴趣使然']
-    latestArticles.value = res.list.map(item => ({
+    latestNotes.value = res.list.map(item => ({
       id: item.id,
       title: item.title,
-      tag: types[item.moduleType] || '文章',
+      tag: types[item.moduleType] || '笔记',
       date: item.createTime.split('T')[0].replace(/-/g, '/'),
       cover: item.coverUrl
     }))
@@ -297,7 +312,7 @@ const mockRecommend = ref([
 onMounted(() => {
   updateTime()
   timeInterval = setInterval(updateTime, 1000)
-  fetchLatestArticles()
+  fetchLatestNotes()
   fetchAnimeStats()
 })
 
@@ -448,6 +463,17 @@ onUnmounted(() => {
   display: flex;
   gap: 10px;
   margin-bottom: 12px;
+  text-decoration: none;
+  border-radius: 12px;
+  padding: 8px;
+  margin-left: -8px;
+  margin-right: -8px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.latest-item:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .latest-item:last-child {
@@ -846,6 +872,73 @@ onUnmounted(() => {
   font-size: 22px;
   font-weight: 700;
   color: #2e4a4e;
+}
+
+/* ====== 弹窗 ====== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: modal-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background: rgba(255, 255, 255, 0.88); /* Increase opacity for better contrast */
+  border: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+@keyframes modal-pop {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e3a3c;
+  text-align: center;
+}
+
+.modal-content {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #2e4a4e; /* Darker text */
+  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+
+.modal-close-btn {
+  background: linear-gradient(135deg, #35bfab, #26a69a);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 10px;
+}
+
+.modal-close-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(53, 191, 171, 0.3);
 }
 
 /* ====== 响应式 ====== */
