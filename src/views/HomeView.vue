@@ -21,26 +21,30 @@
           </div>
           <div class="nav-section-title">GENERAL</div>
           <nav class="nav-menu">
-            <a href="javascript:void(0)" @click="showDevAlert" class="nav-item">
+            <router-link to="/study" class="nav-item">
               <BookOpen :size="15" />
-              <span>近期文章</span>
-            </a>
+              <span>学习记录</span>
+            </router-link>
+            <router-link to="/essay" class="nav-item">
+              <PenLine :size="15" />
+              <span>生活随笔</span>
+            </router-link>
+            <router-link to="/interest" class="nav-item">
+              <Sparkles :size="15" />
+              <span>兴趣使然</span>
+            </router-link>
             <router-link to="/anime" class="nav-item">
               <Tv :size="15" />
               <span>追番管理</span>
             </router-link>
-            <a href="javascript:void(0)" @click="showDevAlert" class="nav-item">
-              <PenLine :size="15" />
-              <span>生活随笔</span>
-            </a>
-            <a href="javascript:void(0)" @click="showDevAlert" class="nav-item">
-              <Sparkles :size="15" />
-              <span>兴趣使然</span>
-            </a>
             <a href="javascript:void(0)" @click="showAboutModal = true" class="nav-item">
               <Info :size="15" />
               <span>关于网站</span>
             </a>
+            <router-link to="/recent" class="nav-item">
+              <BookOpen :size="15" />
+              <span>文章文档</span>
+            </router-link>
           </nav>
         </div>
 
@@ -85,18 +89,7 @@
           <div class="greet-name">I'm <span class="greet-highlight">CZF</span>, Nice to<br/>meet you!</div>
         </div>
 
-        <!-- 社交链接 -->
-        <div class="card social-card">
-          <a href="https://github.com" target="_blank" class="social-btn github">
-            <Github :size="16" /><span>Github</span>
-          </a>
-          <a href="https://bilibili.com" target="_blank" class="social-btn bilibili">
-            <Youtube :size="16" /><span>Bilibili</span>
-          </a>
-          <a href="#" class="social-btn mail">
-            <Mail :size="16" />
-          </a>
-        </div>
+
 
         <!-- 随机推荐卡 -->
         <div class="card recommend-card">
@@ -120,7 +113,11 @@
             <Edit3 :size="18" />
             <span>写文章</span>
           </router-link>
-          <button class="icon-btn"><Grid :size="18" /></button>
+          <div class="write-socials">
+            <a href="https://github.com" target="_blank" class="social-icon" title="Github"><Github :size="16" /></a>
+            <a href="https://bilibili.com" target="_blank" class="social-icon" title="Bilibili"><Youtube :size="16" /></a>
+            <a href="mailto:czf@example.com" class="social-icon" title="Mail"><Mail :size="16" /></a>
+          </div>
         </div>
 
         <!-- 数字时钟 -->
@@ -589,49 +586,31 @@ onUnmounted(() => {
   font-size: 22px;
 }
 
-/* 社交链接 */
-.social-card {
-  padding: 14px 16px;
+/* 社交链接已合并到写文章卡片 */
+.write-socials {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
 }
 
-.social-btn {
+.social-icon {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #5a8c8f;
+  background: rgba(53, 191, 171, 0.08);
+  transition: all 0.2s;
   text-decoration: none;
-  transition: opacity 0.15s, transform 0.15s;
-}
-.social-btn:hover {
-  opacity: 0.85;
-  transform: translateY(-1px);
 }
 
-.social-btn.github {
-  background: #1a1a1a;
-  color: white;
-}
-
-.social-btn.bilibili {
-  background: #fb7299;
-  color: white;
-}
-
-.social-btn.mail {
+.social-icon:hover {
   background: rgba(53, 191, 171, 0.15);
   color: #35bfab;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  justify-content: center;
-  border-radius: 50%;
+  transform: translateY(-1px);
 }
 
 /* 随机推荐 */
@@ -695,16 +674,17 @@ onUnmounted(() => {
 .write-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: linear-gradient(135deg, #35bfab, #26a69a);
   color: white;
   text-decoration: none;
-  padding: 9px 20px;
+  padding: 8px 16px;
   border-radius: 20px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   transition: opacity 0.15s, transform 0.15s;
   box-shadow: 0 4px 14px rgba(53, 191, 171, 0.35);
+  flex-shrink: 0;
 }
 
 .write-btn:hover {
