@@ -26,11 +26,11 @@ const router = createRouter({
       name: 'recentList',
       component: () => import('./views/NoteCategoryListView.vue'),
       props: {
-        pageTitle: '近期文章',
+        pageTitle: '文章归档',
         pageSubtitle: '按发布时间查看最近更新的内容',
-        loadingText: '正在加载近期文章...',
-        emptyText: '暂无近期文章',
-        errorText: '获取近期文章失败，请稍后重试'
+        loadingText: '正在加载文章...',
+        emptyText: '暂无文章',
+        errorText: '获取文章失败，请稍后重试'
       }
     },
     {

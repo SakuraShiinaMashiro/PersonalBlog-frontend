@@ -43,7 +43,7 @@
             </a>
             <router-link to="/recent" class="nav-item">
               <BookOpen :size="15" />
-              <span>文章文档</span>
+              <span>文章归档</span>
             </router-link>
           </nav>
         </div>
@@ -86,7 +86,7 @@
         <div class="card greet-card">
           <div class="greet-avatar">🐱</div>
           <div class="greet-text">{{ greetingText }}</div>
-          <div class="greet-name">I'm <span class="greet-highlight">CZF</span>, Nice to<br/>meet you!</div>
+          <div class="greet-name">I'm <span class="greet-highlight">Challenge</span>, Nice to<br/>meet you!</div>
         </div>
 
 
