@@ -90,6 +90,11 @@
         </div>
       </div>
     </div>
+
+    <AppNoticeDialog
+      v-model="noticeVisible"
+      :message="noticeMessage"
+    />
   </div>
 </template>
 
@@ -100,6 +105,8 @@ import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ArrowLeft, Send, X } from 'lucide-vue-next'
 import { noteApi, NoteSaveParams } from '@/api/note'
+import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
+import { useNotice } from '@/composables/useNotice'
 
 const router = useRouter()
 
@@ -113,6 +120,7 @@ const noteForm = reactive<NoteSaveParams>({
 })
 
 const newTag = ref('')
+const { noticeVisible, noticeMessage, openNotice } = useNotice()
 
 const toolbars: ToolbarNames[] = [
   'bold', 'underline', 'italic', '-', 'strikeThrough', 'title', 'sub', 'sup', 'quote', 'unorderedList', 'orderedList', 'task', '-', 'codeRow', 'code', 'link', 'image', 'table', 'mermaid', 'katex', '-', 'revoke', 'next', 'save', '=', 'pageFullscreen', 'fullscreen', 'preview', 'htmlPreview', 'catalog'
@@ -132,20 +140,21 @@ const removeTag = (index: number) => {
 
 const handlePublish = async (status: number) => {
   if (!noteForm.title.trim()) {
-    alert('请输入标题')
+    openNotice('请输入标题')
     return
   }
   if (!noteForm.content.trim()) {
-    alert('请输入正文')
+    openNotice('请输入正文')
+    return
   }
   noteForm.status = status
   try {
     await noteApi.save(noteForm)
-    alert(status === 1 ? '发布成功' : '草稿保存成功')
+    openNotice(status === 1 ? '发布成功' : '草稿保存成功')
     router.push('/') // MVP版先跳回首页
   } catch (e) {
     console.error('发布失败', e)
-    alert('操作失败，请重试')
+    openNotice('操作失败，请重试')
   }
 }
 </script>

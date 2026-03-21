@@ -185,6 +185,11 @@
         <button class="modal-close-btn" @click="showAboutModal = false">关闭</button>
       </div>
     </div>
+
+    <AppNoticeDialog
+      v-model="noticeVisible"
+      :message="noticeMessage"
+    />
   </div>
 </template>
 
@@ -196,9 +201,13 @@ import {
 } from 'lucide-vue-next'
 import { noteApi } from '@/api/note'
 import { animeApi } from '@/api/anime'
+import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
+import { useNotice } from '@/composables/useNotice'
+
+const { noticeVisible, noticeMessage, openNotice } = useNotice()
 
 const showDevAlert = () => {
-  alert('该板块正在开发中，敬请期待！')
+  openNotice('该板块正在开发中，敬请期待！')
 }
 
 const showAboutModal = ref(false)

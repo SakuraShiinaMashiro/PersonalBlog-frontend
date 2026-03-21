@@ -40,6 +40,11 @@ export interface AnimeListItem {
   progress: AnimeProgress
 }
 
+export interface AnimeImportResult {
+  action: 'CREATED' | 'UPDATED'
+  message: string
+}
+
 export const animeApi = {
   /**
    * 搜索 Bangumi 番剧
@@ -52,7 +57,7 @@ export const animeApi = {
    * 导入番剧元数据
    */
   import(data: { bgmId: number }) {
-    return request.post('/anime/import', data)
+    return request.post<any, AnimeImportResult>('/anime/import', data)
   },
   /**
    * 获取番剧列表

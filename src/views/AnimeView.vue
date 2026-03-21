@@ -215,12 +215,19 @@
       </div>
     </Transition>
   </div>
+
+  <AppNoticeDialog
+    v-model="noticeVisible"
+    :message="noticeMessage"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { animeApi, AnimeListItem, BangumiSubject } from '@/api/anime'
 import { Plus, Search, X } from 'lucide-vue-next'
+import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
+import { useNotice } from '@/composables/useNotice'
 
 const selectedYear = ref(new Date().getFullYear().toString())
 const selectedSeason = ref(Math.floor(new Date().getMonth() / 3) + 1)
@@ -231,6 +238,7 @@ const currentAnime = ref<AnimeListItem | null>(null)
 const keyword = ref('')
 const searchResults = ref<BangumiSubject[]>([])
 const activeTab = ref(-1) // -1:全部
+const { noticeVisible, noticeMessage, openNotice } = useNotice()
 
 const statusTabs = [
   { value: -1, label: '全部', dotClass: 'dot-all' },
@@ -324,10 +332,12 @@ const onSearch = async () => {
 
 const importAnime = async (row: any) => {
   try {
-    await animeApi.import({ bgmId: row.id })
+    const result = await animeApi.import({ bgmId: row.id })
+    openNotice(result.action === 'UPDATED' ? '已存在，已刷新番剧信息' : '导入成功')
     showSearch.value = false
-    fetchList()
+    await fetchList()
   } catch (e) {
+    openNotice('导入失败，请重试')
     console.error('导入失败', e)
   }
 }
