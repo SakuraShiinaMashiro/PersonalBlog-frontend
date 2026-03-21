@@ -22,14 +22,17 @@ export interface AnimeSubject {
   title: string
   imageUrl: string
   eps: number
-  status: number
+  airDate?: string
   airYear: number
   airSeason: number
 }
 
 export interface AnimeProgress {
   animeId: number
+  status: number
   watchedEps: number[]
+  trackDate: string
+  lastWatchAt?: string
 }
 
 export interface AnimeListItem {
@@ -48,7 +51,7 @@ export const animeApi = {
   /**
    * 导入番剧元数据
    */
-  import(data: { bgmId: number; airYear: number; airSeason: number }) {
+  import(data: { bgmId: number }) {
     return request.post('/anime/import', data)
   },
   /**
@@ -62,11 +65,5 @@ export const animeApi = {
    */
   toggle(animeId: number, episodeIndex: number) {
     return request.post('/anime/toggle', { animeId, episodeIndex })
-  },
-  /**
-   * 更新番剧状态
-   */
-  updateStatus(animeId: number, status: number) {
-    return request.put('/anime/status', { animeId, status })
   }
 }
