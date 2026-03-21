@@ -73,8 +73,8 @@
               class="card-cover"
               alt="cover"
             />
-            <div :class="['status-badge', getStatusBadgeClass(item.subject.status)]">
-              {{ getStatusText(item.subject.status) }}
+            <div :class="['status-badge', getStatusBadgeClass(item.progress.status)]">
+              {{ getStatusText(item.progress.status) }}
             </div>
             <!-- 进度环覆盖 -->
             <div class="progress-overlay">
@@ -94,7 +94,7 @@
           <div class="card-body">
             <h3 class="card-title" :title="item.subject.title">{{ item.subject.title }}</h3>
             <div class="card-meta">
-              <span>{{ item.subject.airYear }}年 {{ getSeasonName(item.subject.airSeason) }}季</span>
+              <span>{{ formatAirInfo(item) }}</span>
               <span class="meta-dot">·</span>
               <span>{{ item.subject.eps || '??' }} 话</span>
             </div>
@@ -139,7 +139,7 @@
               />
               <div>
                 <h3 class="modal-title">{{ currentAnime?.subject.title }}</h3>
-                <p class="modal-sub">{{ currentAnime?.subject.eps }} 集 · {{ getStatusText(currentAnime?.subject.status ?? 0) }}</p>
+                <p class="modal-sub">{{ currentAnime?.subject.eps }} 集</p>
               </div>
             </div>
             <button @click="showProgress = false" class="modal-close">
@@ -147,16 +147,14 @@
             </button>
           </div>
 
-          <!-- 状态切换 -->
           <div class="modal-status-row">
-            <button
+            <div
               v-for="status in [0, 1, 2]"
               :key="status"
-              @click="handleStatusChange(status)"
-              :class="['status-chip', currentAnimeStatus === status ? getStatusChipActive(status) : 'chip-inactive']"
+              :class="['status-chip', currentAnime?.progress.status === status ? getStatusChipActive(status) : 'chip-inactive']"
             >
               {{ getStatusText(status) }}
-            </button>
+            </div>
           </div>
 
           <!-- 集数格子 -->
@@ -222,7 +220,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { animeApi, AnimeListItem, BangumiSubject } from '@/api/anime'
-import { Plus, Search, X, Home } from 'lucide-vue-next'
+import { Plus, Search, X } from 'lucide-vue-next'
 
 const selectedYear = ref(new Date().getFullYear().toString())
 const selectedSeason = ref(Math.floor(new Date().getMonth() / 3) + 1)
@@ -238,17 +236,24 @@ const statusTabs = [
   { value: -1, label: '全部', dotClass: 'dot-all' },
   { value: 1,  label: '在看', dotClass: 'dot-watching' },
   { value: 0,  label: '想看', dotClass: 'dot-plan' },
-  { value: 2,  label: '已完结', dotClass: 'dot-done' }
+  { value: 2,  label: '已看完', dotClass: 'dot-done' }
 ]
 
 const filteredList = computed(() => {
-  if (activeTab.value === -1) return animeList.value
-  return animeList.value.filter(i => i.subject.status === activeTab.value)
+  const list = activeTab.value === -1
+    ? animeList.value
+    : animeList.value.filter(i => i.progress.status === activeTab.value)
+
+  return [...list].sort((a, b) => {
+    const aTime = a.progress.trackDate ? new Date(a.progress.trackDate).getTime() : 0
+    const bTime = b.progress.trackDate ? new Date(b.progress.trackDate).getTime() : 0
+    return bTime - aTime
+  })
 })
 
 const getCountByStatus = (status: number) => {
   if (status === -1) return animeList.value.length
-  return animeList.value.filter(i => i.subject.status === status).length
+  return animeList.value.filter(i => i.progress.status === status).length
 }
 
 const currentSeasonLabel = computed(() => {
@@ -273,37 +278,39 @@ const openProgress = (item: AnimeListItem) => {
   showProgress.value = true
 }
 
-const currentAnimeStatus = computed({
-  get: () => currentAnime.value?.subject.status ?? 0,
-  set: (val) => { if (currentAnime.value) currentAnime.value.subject.status = val }
-})
-
 const isWatched = (index: number) => currentAnime.value?.progress.watchedEps.includes(index) ?? false
+
+const calculateStatusByProgress = (watchedCount: number, totalEpisodes: number) => {
+  if (watchedCount <= 0) return 0
+  if (totalEpisodes > 0 && watchedCount >= totalEpisodes) return 2
+  return 1
+}
 
 const toggleEp = async (index: number) => {
   if (!currentAnime.value) return
   const animeId = currentAnime.value.subject.id
+  const totalEpisodes = currentAnime.value.subject.eps || 0
+  if (index < 1 || (totalEpisodes > 0 && index > totalEpisodes)) return
+
   const eps = currentAnime.value.progress.watchedEps
+  const prevEps = [...eps]
+  const prevStatus = currentAnime.value.progress.status
   const wasWatched = eps.includes(index)
   if (wasWatched) {
     eps.splice(eps.indexOf(index), 1)
   } else {
     eps.push(index)
   }
-  animeApi.toggle(animeId, index).catch(() => {
-    if (wasWatched) eps.push(index)
-    else { const i = eps.indexOf(index); if (i > -1) eps.splice(i, 1) }
-  })
-}
 
-const handleStatusChange = async (status: number) => {
-  if (!currentAnime.value) return
-  currentAnime.value.subject.status = status
-  try {
-    await animeApi.updateStatus(currentAnime.value.subject.id, status)
-  } catch (e) {
-    console.error('状态更新失败', e)
-  }
+  const deduped = Array.from(new Set(eps)).sort((a, b) => a - b)
+  currentAnime.value.progress.watchedEps = deduped
+  currentAnime.value.progress.status = calculateStatusByProgress(deduped.length, totalEpisodes)
+
+  animeApi.toggle(animeId, index).catch(() => {
+    if (!currentAnime.value) return
+    currentAnime.value.progress.watchedEps = prevEps
+    currentAnime.value.progress.status = prevStatus
+  })
 }
 
 const onSearch = async () => {
@@ -317,7 +324,7 @@ const onSearch = async () => {
 
 const importAnime = async (row: any) => {
   try {
-    await animeApi.import({ bgmId: row.id, airYear: Number(selectedYear.value), airSeason: selectedSeason.value })
+    await animeApi.import({ bgmId: row.id })
     showSearch.value = false
     fetchList()
   } catch (e) {
@@ -325,7 +332,7 @@ const importAnime = async (row: any) => {
   }
 }
 
-const getStatusText = (status: number) => ['想看', '在看', '已完结'][status] || '未知'
+const getStatusText = (status: number) => ['想看', '在看', '已看完'][status] || '未知'
 
 const getStatusBadgeClass = (status: number) => {
   return ['badge-plan', 'badge-watching', 'badge-done'][status] || 'badge-plan'
@@ -333,6 +340,13 @@ const getStatusBadgeClass = (status: number) => {
 
 const getStatusChipActive = (status: number) => {
   return ['chip-plan', 'chip-watching', 'chip-done'][status] || 'chip-plan'
+}
+
+const formatAirInfo = (item: AnimeListItem) => {
+  if (item.subject.airDate) {
+    return item.subject.airDate
+  }
+  return `${item.subject.airYear}年 ${getSeasonName(item.subject.airSeason)}季`
 }
 
 const getSeasonLabel = (s: number) => ['1月 冬', '4月 春', '7月 夏', '10月 秋'][s - 1] || ''
@@ -571,18 +585,22 @@ onMounted(fetchList)
 /* 状态标签 */
 .status-badge {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 10px;
+  left: 10px;
   font-size: 10px;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 4px 12px;
   border-radius: 20px;
   color: white;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
-.badge-plan { background: rgba(80, 90, 100, 0.8); }
-.badge-watching { background: rgba(53, 191, 171, 0.9); }
-.badge-done { background: rgba(76, 175, 80, 0.9); }
+.badge-plan { background: rgba(56, 73, 76, 0.82); }
+.badge-watching { background: rgba(43, 168, 153, 0.92); }
+.badge-done { background: rgba(67, 160, 71, 0.92); }
 
 /* 进度圆环 */
 .progress-overlay {
@@ -755,34 +773,49 @@ onMounted(fetchList)
 }
 .modal-close:hover { background: rgba(53,191,171,0.1); color: #35bfab; }
 
-/* 状态切换 chips */
 .modal-status-row {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   padding: 14px 20px;
 }
 
 .status-chip {
   flex: 1;
-  padding: 7px 0;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 9px 0;
+  border-radius: 14px;
   border: none;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
-  transition: all 0.15s;
 }
+
 .chip-inactive {
-  background: rgba(255,255,255,0.4);
+  background: rgba(255, 255, 255, 0.45);
   color: #8fadb2;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
-.chip-inactive:hover {
-  background: rgba(255,255,255,0.7);
-  color: #5a8c8f;
+
+.chip-plan {
+  background: linear-gradient(135deg, #90a4ae, #78909c);
+  color: white;
+  box-shadow: 0 4px 12px rgba(120, 144, 156, 0.35);
 }
-.chip-plan { background: rgba(176,190,197,0.25); color: #607d8b; border: 1.5px solid #b0bec5; }
-.chip-watching { background: rgba(53,191,171,0.15); color: #35bfab; border: 1.5px solid #35bfab; }
-.chip-done { background: rgba(76,175,80,0.12); color: #43a047; border: 1.5px solid #81c784; }
+
+.chip-watching {
+  background: linear-gradient(135deg, #35bfab, #4fc3f7);
+  color: white;
+  box-shadow: 0 4px 12px rgba(53, 191, 171, 0.35);
+}
+
+.chip-done {
+  background: linear-gradient(135deg, #66bb6a, #43a047);
+  color: white;
+  box-shadow: 0 4px 12px rgba(67, 160, 71, 0.35);
+}
 
 /* 集数格子 */
 .ep-grid {
@@ -796,25 +829,30 @@ onMounted(fetchList)
 
 .ep-btn {
   height: 38px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 10px;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .ep-watched {
   background: linear-gradient(135deg, #35bfab, #4fc3f7);
   color: white;
-  box-shadow: 0 2px 8px rgba(53,191,171,0.35);
+  box-shadow: 0 4px 12px rgba(53, 191, 171, 0.35);
 }
 .ep-unwatched {
-  background: rgba(255,255,255,0.5);
+  background: rgba(255, 255, 255, 0.45);
+  border-color: rgba(255, 255, 255, 0.5);
   color: #8fadb2;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 .ep-unwatched:hover {
-  background: rgba(53,191,171,0.12);
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(53, 191, 171, 0.3);
   color: #35bfab;
+  transform: translateY(-1px);
 }
 
 /* 搜索区 */

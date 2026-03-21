@@ -153,7 +153,7 @@
             <div class="anime-stat-divider"></div>
             <div class="anime-stat-item">
               <span class="stat-num">{{ animeStats.completed }}</span>
-              <span class="stat-desc">已完结</span>
+              <span class="stat-desc">已看完</span>
             </div>
             <div class="anime-stat-divider"></div>
             <div class="anime-stat-item">
@@ -283,8 +283,8 @@ const fetchAnimeStats = async () => {
     const list = await animeApi.getList()
     let w = 0, c = 0, eps = 0
     list.forEach(item => {
-      if (item.subject.status === 1) w++
-      if (item.subject.status === 2) c++
+      if (item.progress.status === 1) w++
+      if (item.progress.status === 2) c++
       eps += item.progress.watchedEps.length
     })
     animeStats.value.watching = w
