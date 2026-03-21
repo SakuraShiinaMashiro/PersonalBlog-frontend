@@ -168,6 +168,21 @@
               {{ i < 10 ? '0' + i : i }}
             </button>
           </div>
+
+          <div class="quick-actions">
+            <div class="quick-row">
+              <select v-model.number="quickEpisode" class="quick-select">
+                <option v-for="ep in quickEpisodeOptions" :key="ep" :value="ep">
+                  第{{ ep }}集
+                </option>
+              </select>
+              <button class="quick-btn" @click="handleSeenTo">看到第N集</button>
+            </div>
+            <div class="quick-row quick-row-two">
+              <button class="quick-btn quick-complete" @click="handleComplete">一键看完</button>
+              <button class="quick-btn quick-reset" @click="handleReset">重置进度</button>
+            </div>
+          </div>
         </div>
       </div>
     </Transition>
@@ -238,6 +253,7 @@ const currentAnime = ref<AnimeListItem | null>(null)
 const keyword = ref('')
 const searchResults = ref<BangumiSubject[]>([])
 const activeTab = ref(-1) // -1:全部
+const quickEpisode = ref(1)
 const { noticeVisible, noticeMessage, openNotice } = useNotice()
 
 const statusTabs = [
@@ -283,8 +299,15 @@ const calculateProgress = (item: AnimeListItem) => {
 
 const openProgress = (item: AnimeListItem) => {
   currentAnime.value = item
+  quickEpisode.value = item.subject.eps > 0 ? 1 : 0
   showProgress.value = true
 }
+
+const quickEpisodeOptions = computed(() => {
+  const total = currentAnime.value?.subject.eps ?? 0
+  if (total <= 0) return [] as number[]
+  return Array.from({ length: total }, (_, i) => i + 1)
+})
 
 const isWatched = (index: number) => currentAnime.value?.progress.watchedEps.includes(index) ?? false
 
@@ -339,6 +362,84 @@ const importAnime = async (row: any) => {
   } catch (e) {
     openNotice('导入失败，请重试')
     console.error('导入失败', e)
+  }
+}
+
+const buildRangeEpisodes = (n: number) => {
+  if (n <= 0) return [] as number[]
+  return Array.from({ length: n }, (_, i) => i + 1)
+}
+
+const applyLocalProgress = (watchedEps: number[]) => {
+  if (!currentAnime.value) return
+  const totalEpisodes = currentAnime.value.subject.eps || 0
+  const deduped = Array.from(new Set(watchedEps)).sort((a, b) => a - b)
+  currentAnime.value.progress.watchedEps = deduped
+  currentAnime.value.progress.status = calculateStatusByProgress(deduped.length, totalEpisodes)
+}
+
+const handleSeenTo = async () => {
+  if (!currentAnime.value) return
+  const animeId = currentAnime.value.subject.id
+  const totalEpisodes = currentAnime.value.subject.eps || 0
+  if (totalEpisodes <= 0 || quickEpisode.value < 1) return
+
+  const targetEpisode = Math.min(quickEpisode.value, totalEpisodes)
+  const prevEps = [...currentAnime.value.progress.watchedEps]
+  const prevStatus = currentAnime.value.progress.status
+  applyLocalProgress(buildRangeEpisodes(targetEpisode))
+
+  try {
+    await animeApi.seenTo(animeId, targetEpisode)
+  } catch (e) {
+    if (currentAnime.value) {
+      currentAnime.value.progress.watchedEps = prevEps
+      currentAnime.value.progress.status = prevStatus
+    }
+    openNotice('操作失败，请重试')
+    console.error('快捷更新到第N集失败', e)
+  }
+}
+
+const handleComplete = async () => {
+  if (!currentAnime.value) return
+  const animeId = currentAnime.value.subject.id
+  const totalEpisodes = currentAnime.value.subject.eps || 0
+  if (totalEpisodes <= 0) return
+
+  const prevEps = [...currentAnime.value.progress.watchedEps]
+  const prevStatus = currentAnime.value.progress.status
+  applyLocalProgress(buildRangeEpisodes(totalEpisodes))
+
+  try {
+    await animeApi.complete(animeId)
+  } catch (e) {
+    if (currentAnime.value) {
+      currentAnime.value.progress.watchedEps = prevEps
+      currentAnime.value.progress.status = prevStatus
+    }
+    openNotice('操作失败，请重试')
+    console.error('一键看完失败', e)
+  }
+}
+
+const handleReset = async () => {
+  if (!currentAnime.value) return
+  const animeId = currentAnime.value.subject.id
+
+  const prevEps = [...currentAnime.value.progress.watchedEps]
+  const prevStatus = currentAnime.value.progress.status
+  applyLocalProgress([])
+
+  try {
+    await animeApi.reset(animeId)
+  } catch (e) {
+    if (currentAnime.value) {
+      currentAnime.value.progress.watchedEps = prevEps
+      currentAnime.value.progress.status = prevStatus
+    }
+    openNotice('操作失败，请重试')
+    console.error('重置进度失败', e)
   }
 }
 
@@ -863,6 +964,62 @@ onMounted(fetchList)
   border-color: rgba(53, 191, 171, 0.3);
   color: #35bfab;
   transform: translateY(-1px);
+}
+
+.quick-actions {
+  padding: 0 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quick-row {
+  display: flex;
+  gap: 10px;
+}
+
+.quick-row-two .quick-btn {
+  flex: 1;
+}
+
+.quick-select {
+  min-width: 110px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(53, 191, 171, 0.25);
+  background: rgba(255, 255, 255, 0.65);
+  color: #2e4a4e;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+
+.quick-btn {
+  padding: 9px 14px;
+  border: none;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #ffffff;
+  background: linear-gradient(135deg, #35bfab, #26a69a);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.quick-btn:hover {
+  opacity: 0.92;
+}
+
+.quick-btn:active {
+  transform: scale(0.98);
+}
+
+.quick-complete {
+  background: linear-gradient(135deg, #5bbd6a, #43a047);
+}
+
+.quick-reset {
+  background: linear-gradient(135deg, #90a4ae, #78909c);
 }
 
 /* 搜索区 */

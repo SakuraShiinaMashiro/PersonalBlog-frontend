@@ -70,5 +70,23 @@ export const animeApi = {
    */
   toggle(animeId: number, episodeIndex: number) {
     return request.post('/anime/toggle', { animeId, episodeIndex })
+  },
+  /**
+   * 快捷更新进度到第N集
+   */
+  seenTo(animeId: number, episode: number) {
+    return request.put('/anime/progress/seen-to', { animeId, episode })
+  },
+  /**
+   * 快捷一键看完
+   */
+  complete(animeId: number) {
+    return request.put('/anime/progress/complete', { animeId })
+  },
+  /**
+   * 快捷重置进度
+   */
+  reset(animeId: number) {
+    return request.put('/anime/progress/reset', { animeId })
   }
 }
