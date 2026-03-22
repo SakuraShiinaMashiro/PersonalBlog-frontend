@@ -218,6 +218,7 @@
                 </option>
               </select>
               <button class="quick-btn" @click="handleSeenTo">看到第N集</button>
+              <button class="quick-btn quick-delete" :disabled="deletingAnime" @click="openDeleteConfirm">删除追番</button>
             </div>
             <div class="quick-row quick-row-two">
               <button class="quick-btn quick-complete" @click="handleComplete">一键看完</button>
@@ -289,6 +290,17 @@
     v-model="noticeVisible"
     :message="noticeMessage"
   />
+
+  <AppConfirmDialog
+    v-model="showDeleteConfirm"
+    title="确认删除该追番记录？"
+    message="删除后将清空该番剧的追番进度与开始追番时间，此操作不可恢复。"
+    confirm-text="确认"
+    cancel-text="取消"
+    :danger="true"
+    :loading="deletingAnime"
+    @confirm="handleDeleteAnime"
+  />
 </template>
 
 <script setup lang="ts">
@@ -297,11 +309,14 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { animeApi, AnimeListItem, BangumiSubject } from '@/api/anime'
 import { Plus, Search, X } from 'lucide-vue-next'
 import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
+import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
 import { useNotice } from '@/composables/useNotice'
 
 const animeList = ref<AnimeListItem[]>([])
 const showProgress = ref(false)
 const showSearch = ref(false)
+const showDeleteConfirm = ref(false)
+const deletingAnime = ref(false)
 const currentAnime = ref<AnimeListItem | null>(null)
 const keyword = ref('')
 const searchResults = ref<BangumiSubject[]>([])
@@ -434,6 +449,12 @@ watch(selectedAirYear, () => {
   }
 })
 
+watch(showProgress, (visible) => {
+  if (!visible) {
+    showDeleteConfirm.value = false
+  }
+})
+
 const calculateProgress = (item: AnimeListItem) => {
   if (!item.subject.eps || item.subject.eps === 0) return 0
   return Math.min(100, Math.round((item.progress.watchedEps.length / item.subject.eps) * 100))
@@ -563,6 +584,32 @@ const handleTrackDateUpdate = async () => {
     }
     openNotice('追番时间更新失败，请重试')
     console.error('更新追番时间失败', e)
+  }
+}
+
+const openDeleteConfirm = () => {
+  if (!currentAnime.value) return
+  showDeleteConfirm.value = true
+}
+
+const handleDeleteAnime = async () => {
+  if (!currentAnime.value) return
+  const animeId = currentAnime.value.subject.id
+  deletingAnime.value = true
+
+  try {
+    await animeApi.deleteAnime(animeId)
+    animeList.value = animeList.value.filter(item => item.subject.id !== animeId)
+    showDeleteConfirm.value = false
+    showProgress.value = false
+    currentAnime.value = null
+    openNotice('删除成功')
+  } catch (e) {
+    showDeleteConfirm.value = false
+    openNotice('删除失败，请重试')
+    console.error('删除追番失败', e)
+  } finally {
+    deletingAnime.value = false
   }
 }
 
@@ -1306,12 +1353,24 @@ onMounted(fetchList)
   transform: scale(0.98);
 }
 
+.quick-btn:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .quick-complete {
   background: linear-gradient(135deg, #5bbd6a, #43a047);
 }
 
 .quick-reset {
   background: linear-gradient(135deg, #90a4ae, #78909c);
+}
+
+.quick-delete {
+  background: linear-gradient(135deg, #ef5350, #e53935);
+  box-shadow: 0 4px 14px rgba(229, 57, 53, 0.28);
+  margin-left: auto;
 }
 
 /* 搜索区 */
