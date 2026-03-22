@@ -36,7 +36,7 @@
             </button>
           </div>
           <!-- 添加按钮 -->
-          <button @click="showSearch = true" class="add-btn">
+          <button @click="openSearchModal" class="add-btn">
             <Plus :size="16" />
             添加追番
           </button>
@@ -98,6 +98,8 @@
               <span class="meta-dot">·</span>
               <span>{{ item.subject.eps || '??' }} 话</span>
             </div>
+            <div class="card-time">开始追番：{{ formatTrackDate(item.progress.trackDate) }}</div>
+            <div class="card-time">最近观看：{{ formatLastWatchAt(item.progress.lastWatchAt) }}</div>
             <!-- 进度条 -->
             <div class="progress-bar-wrap">
               <div class="progress-bar-bg">
@@ -118,7 +120,7 @@
       <div v-else class="empty-state card">
         <div class="empty-icon">🎌</div>
         <p class="empty-text">这个季度还没有番剧，快去添加吧！</p>
-        <button @click="showSearch = true" class="add-btn">
+        <button @click="openSearchModal" class="add-btn">
           <Plus :size="16" /> 添加追番
         </button>
       </div>
@@ -154,6 +156,20 @@
               :class="['status-chip', currentAnime?.progress.status === status ? getStatusChipActive(status) : 'chip-inactive']"
             >
               {{ getStatusText(status) }}
+            </div>
+          </div>
+
+          <div class="track-date-row">
+            <span class="track-date-label">开始追番时间</span>
+            <div class="track-date-action">
+              <input
+                v-model="editingTrackDate"
+                type="date"
+                class="track-date-input"
+                :max="todayDateString"
+                required
+              />
+              <button class="quick-btn" @click="handleTrackDateUpdate">保存时间</button>
             </div>
           </div>
 
@@ -208,6 +224,19 @@
             <button @click="onSearch" class="search-btn">搜索</button>
           </div>
 
+          <div class="import-date-row">
+            <span class="import-date-label">开始追番时间</span>
+            <input
+              v-model="importTrackDate"
+              type="date"
+              class="import-date-input"
+              :max="todayDateString"
+              required
+              @change="normalizeImportTrackDate"
+              @blur="normalizeImportTrackDate"
+            />
+          </div>
+
           <div class="search-results custom-scrollbar">
             <div v-if="searchResults.length === 0" class="empty-search">
               <Search :size="40" stroke-width="1" />
@@ -221,7 +250,7 @@
               <img :src="res.images?.grid" referrerpolicy="no-referrer" class="search-cover" />
               <div class="search-info">
                 <h4 class="search-name">{{ res.name_cn || res.name }}</h4>
-                <p class="search-meta">{{ res.date }} · {{ res.eps }} 话</p>
+                <p class="search-meta">{{ res.date }}{{ getWeekDay(res.date) }} · {{ res.eps }} 话</p>
               </div>
               <button @click="importAnime(res)" class="import-btn">导入</button>
             </div>
@@ -238,7 +267,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
+
 import { animeApi, AnimeListItem, BangumiSubject } from '@/api/anime'
 import { Plus, Search, X } from 'lucide-vue-next'
 import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
@@ -254,7 +284,22 @@ const keyword = ref('')
 const searchResults = ref<BangumiSubject[]>([])
 const activeTab = ref(-1) // -1:全部
 const quickEpisode = ref(1)
+const todayDateString = new Date().toISOString().slice(0, 10)
+const importTrackDate = ref(todayDateString)
+const editingTrackDate = ref('')
 const { noticeVisible, noticeMessage, openNotice } = useNotice()
+
+watch(importTrackDate, (newVal) => {
+  if (!newVal) {
+    importTrackDate.value = todayDateString
+  }
+})
+
+watch(editingTrackDate, (newVal, oldVal) => {
+  if (!newVal && oldVal) {
+    editingTrackDate.value = oldVal
+  }
+})
 
 const statusTabs = [
   { value: -1, label: '全部', dotClass: 'dot-all' },
@@ -269,9 +314,9 @@ const filteredList = computed(() => {
     : animeList.value.filter(i => i.progress.status === activeTab.value)
 
   return [...list].sort((a, b) => {
-    const aTime = a.progress.trackDate ? new Date(a.progress.trackDate).getTime() : 0
-    const bTime = b.progress.trackDate ? new Date(b.progress.trackDate).getTime() : 0
-    return bTime - aTime
+    const aDate = a.progress.trackDate || ''
+    const bDate = b.progress.trackDate || ''
+    return bDate.localeCompare(aDate)
   })
 })
 
@@ -300,7 +345,19 @@ const calculateProgress = (item: AnimeListItem) => {
 const openProgress = (item: AnimeListItem) => {
   currentAnime.value = item
   quickEpisode.value = item.subject.eps > 0 ? 1 : 0
+  editingTrackDate.value = item.progress.trackDate || ''
   showProgress.value = true
+}
+
+const openSearchModal = () => {
+  importTrackDate.value = todayDateString
+  showSearch.value = true
+}
+
+const normalizeImportTrackDate = () => {
+  if (!importTrackDate.value) {
+    importTrackDate.value = todayDateString
+  }
 }
 
 const quickEpisodeOptions = computed(() => {
@@ -310,6 +367,18 @@ const quickEpisodeOptions = computed(() => {
 })
 
 const isWatched = (index: number) => currentAnime.value?.progress.watchedEps.includes(index) ?? false
+
+const getNowLocalDateTime = () => {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const y = now.getFullYear()
+  const m = pad(now.getMonth() + 1)
+  const d = pad(now.getDate())
+  const hh = pad(now.getHours())
+  const mm = pad(now.getMinutes())
+  const ss = pad(now.getSeconds())
+  return `${y}-${m}-${d}T${hh}:${mm}:${ss}`
+}
 
 const calculateStatusByProgress = (watchedCount: number, totalEpisodes: number) => {
   if (watchedCount <= 0) return 0
@@ -326,6 +395,7 @@ const toggleEp = async (index: number) => {
   const eps = currentAnime.value.progress.watchedEps
   const prevEps = [...eps]
   const prevStatus = currentAnime.value.progress.status
+  const prevLastWatchAt = currentAnime.value.progress.lastWatchAt
   const wasWatched = eps.includes(index)
   if (wasWatched) {
     eps.splice(eps.indexOf(index), 1)
@@ -336,11 +406,13 @@ const toggleEp = async (index: number) => {
   const deduped = Array.from(new Set(eps)).sort((a, b) => a - b)
   currentAnime.value.progress.watchedEps = deduped
   currentAnime.value.progress.status = calculateStatusByProgress(deduped.length, totalEpisodes)
+  currentAnime.value.progress.lastWatchAt = getNowLocalDateTime()
 
   animeApi.toggle(animeId, index).catch(() => {
     if (!currentAnime.value) return
     currentAnime.value.progress.watchedEps = prevEps
     currentAnime.value.progress.status = prevStatus
+    currentAnime.value.progress.lastWatchAt = prevLastWatchAt
   })
 }
 
@@ -353,15 +425,41 @@ const onSearch = async () => {
   }
 }
 
-const importAnime = async (row: any) => {
+const importAnime = async (row: BangumiSubject) => {
   try {
-    const result = await animeApi.import({ bgmId: row.id })
+    const result = await animeApi.import({
+      bgmId: row.id,
+      trackDate: importTrackDate.value
+    })
     openNotice(result.action === 'UPDATED' ? '已存在，已刷新番剧信息' : '导入成功')
     showSearch.value = false
     await fetchList()
   } catch (e) {
     openNotice('导入失败，请重试')
     console.error('导入失败', e)
+  }
+}
+
+const handleTrackDateUpdate = async () => {
+  if (!currentAnime.value || !editingTrackDate.value) {
+    openNotice('请选择开始追番时间')
+    return
+  }
+
+  const animeId = currentAnime.value.subject.id
+  const prevTrackDate = currentAnime.value.progress.trackDate
+  currentAnime.value.progress.trackDate = editingTrackDate.value
+
+  try {
+    await animeApi.updateTrackDate(animeId, editingTrackDate.value)
+    openNotice('追番时间已更新')
+  } catch (e) {
+    if (currentAnime.value) {
+      currentAnime.value.progress.trackDate = prevTrackDate
+      editingTrackDate.value = prevTrackDate || ''
+    }
+    openNotice('追番时间更新失败，请重试')
+    console.error('更新追番时间失败', e)
   }
 }
 
@@ -387,7 +485,9 @@ const handleSeenTo = async () => {
   const targetEpisode = Math.min(quickEpisode.value, totalEpisodes)
   const prevEps = [...currentAnime.value.progress.watchedEps]
   const prevStatus = currentAnime.value.progress.status
+  const prevLastWatchAt = currentAnime.value.progress.lastWatchAt
   applyLocalProgress(buildRangeEpisodes(targetEpisode))
+  currentAnime.value.progress.lastWatchAt = getNowLocalDateTime()
 
   try {
     await animeApi.seenTo(animeId, targetEpisode)
@@ -395,6 +495,7 @@ const handleSeenTo = async () => {
     if (currentAnime.value) {
       currentAnime.value.progress.watchedEps = prevEps
       currentAnime.value.progress.status = prevStatus
+      currentAnime.value.progress.lastWatchAt = prevLastWatchAt
     }
     openNotice('操作失败，请重试')
     console.error('快捷更新到第N集失败', e)
@@ -409,7 +510,9 @@ const handleComplete = async () => {
 
   const prevEps = [...currentAnime.value.progress.watchedEps]
   const prevStatus = currentAnime.value.progress.status
+  const prevLastWatchAt = currentAnime.value.progress.lastWatchAt
   applyLocalProgress(buildRangeEpisodes(totalEpisodes))
+  currentAnime.value.progress.lastWatchAt = getNowLocalDateTime()
 
   try {
     await animeApi.complete(animeId)
@@ -417,6 +520,7 @@ const handleComplete = async () => {
     if (currentAnime.value) {
       currentAnime.value.progress.watchedEps = prevEps
       currentAnime.value.progress.status = prevStatus
+      currentAnime.value.progress.lastWatchAt = prevLastWatchAt
     }
     openNotice('操作失败，请重试')
     console.error('一键看完失败', e)
@@ -429,7 +533,9 @@ const handleReset = async () => {
 
   const prevEps = [...currentAnime.value.progress.watchedEps]
   const prevStatus = currentAnime.value.progress.status
+  const prevLastWatchAt = currentAnime.value.progress.lastWatchAt
   applyLocalProgress([])
+  currentAnime.value.progress.lastWatchAt = getNowLocalDateTime()
 
   try {
     await animeApi.reset(animeId)
@@ -437,6 +543,7 @@ const handleReset = async () => {
     if (currentAnime.value) {
       currentAnime.value.progress.watchedEps = prevEps
       currentAnime.value.progress.status = prevStatus
+      currentAnime.value.progress.lastWatchAt = prevLastWatchAt
     }
     openNotice('操作失败，请重试')
     console.error('重置进度失败', e)
@@ -453,11 +560,25 @@ const getStatusChipActive = (status: number) => {
   return ['chip-plan', 'chip-watching', 'chip-done'][status] || 'chip-plan'
 }
 
+const getWeekDay = (dateStr?: string) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return ''
+  return ' 星期' + ['日', '一', '二', '三', '四', '五', '六'][date.getDay()]
+}
+
 const formatAirInfo = (item: AnimeListItem) => {
   if (item.subject.airDate) {
-    return item.subject.airDate
+    return item.subject.airDate + getWeekDay(item.subject.airDate)
   }
   return `${item.subject.airYear}年 ${getSeasonName(item.subject.airSeason)}季`
+}
+
+const formatTrackDate = (trackDate?: string) => trackDate || '--'
+
+const formatLastWatchAt = (lastWatchAt?: string) => {
+  if (!lastWatchAt) return '--'
+  return lastWatchAt.replace('T', ' ').slice(0, 16)
 }
 
 const getSeasonLabel = (s: number) => ['1月 冬', '4月 春', '7月 夏', '10月 秋'][s - 1] || ''
@@ -529,13 +650,13 @@ onMounted(fetchList)
 .page-title {
   font-size: 20px;
   font-weight: 700;
-  color: #2e4a4e;
+  color: #1a2b2d;
   margin: 0;
 }
 
 .page-sub {
   font-size: 12px;
-  color: #8fadb2;
+  color: #374151;
   margin: 2px 0 0;
 }
 
@@ -553,7 +674,7 @@ onMounted(fetchList)
   border-radius: 12px;
   background: rgba(255,255,255,0.6);
   font-size: 13px;
-  color: #2e4a4e;
+  color: #1a2b2d;
   outline: none;
   transition: border-color 0.15s;
 }
@@ -632,7 +753,7 @@ onMounted(fetchList)
 }
 .filter-tab.active {
   background: rgba(255,255,255,0.85);
-  color: #2e4a4e;
+  color: #1a2b2d;
   font-weight: 700;
   box-shadow: 0 2px 12px rgba(0,0,0,0.1);
 }
@@ -757,7 +878,7 @@ onMounted(fetchList)
 .card-title {
   font-size: 13px;
   font-weight: 700;
-  color: #2e4a4e;
+  color: #1a2b2d;
   margin: 0 0 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -765,13 +886,19 @@ onMounted(fetchList)
 }
 .card-meta {
   font-size: 11px;
-  color: #8fadb2;
+  color: #374151;
   display: flex;
   align-items: center;
   gap: 4px;
   margin-bottom: 8px;
 }
-.meta-dot { color: #c0d8db; }
+.meta-dot { color: #718096; }
+
+.card-time {
+  font-size: 11px;
+  color: #2d3748;
+  margin-bottom: 4px;
+}
 
 .progress-bar-wrap {
   display: flex;
@@ -808,7 +935,7 @@ onMounted(fetchList)
   text-align: center;
 }
 .empty-icon { font-size: 48px; }
-.empty-text { color: #8fadb2; font-size: 14px; margin: 0; }
+.empty-text { color: #374151; font-size: 14px; margin: 0; }
 
 /* ===== Modal ===== */
 .modal-mask {
@@ -862,18 +989,18 @@ onMounted(fetchList)
 .modal-title {
   font-size: 15px;
   font-weight: 700;
-  color: #2e4a4e;
+  color: #1a2b2d;
   margin: 0;
 }
 
 .modal-sub {
   font-size: 12px;
-  color: #8fadb2;
+  color: #374151;
   margin: 3px 0 0;
 }
 
 .modal-close {
-  color: #8fadb2;
+  color: #374151;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -890,6 +1017,44 @@ onMounted(fetchList)
   padding: 14px 20px;
 }
 
+.track-date-row {
+  padding: 0 20px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.track-date-label {
+  font-size: 12px;
+  color: #1a2b2d;
+  font-weight: 600;
+}
+
+.track-date-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.track-date-input {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(53, 191, 171, 0.25);
+  background: rgba(255, 255, 255, 0.65);
+  color: #1a2b2d;
+  font-size: 12px;
+  outline: none;
+}
+
+.track-date-input::-webkit-clear-button,
+.track-date-input::-webkit-datetime-edit-clear-button,
+.import-date-input::-webkit-clear-button,
+.import-date-input::-webkit-datetime-edit-clear-button {
+  display: none !important;
+  -webkit-appearance: none;
+}
+
 .status-chip {
   flex: 1;
   padding: 9px 0;
@@ -904,7 +1069,7 @@ onMounted(fetchList)
 
 .chip-inactive {
   background: rgba(255, 255, 255, 0.45);
-  color: #8fadb2;
+  color: #374151;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.5);
@@ -955,7 +1120,7 @@ onMounted(fetchList)
 .ep-unwatched {
   background: rgba(255, 255, 255, 0.45);
   border-color: rgba(255, 255, 255, 0.5);
-  color: #8fadb2;
+  color: #374151;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
@@ -988,7 +1153,7 @@ onMounted(fetchList)
   border-radius: 12px;
   border: 1px solid rgba(53, 191, 171, 0.25);
   background: rgba(255, 255, 255, 0.65);
-  color: #2e4a4e;
+  color: #1a2b2d;
   font-size: 13px;
   font-weight: 600;
   outline: none;
@@ -1033,7 +1198,7 @@ onMounted(fetchList)
 .search-icon {
   position: absolute;
   left: 32px;
-  color: #8fadb2;
+  color: #374151;
 }
 .search-input {
   flex: 1;
@@ -1042,7 +1207,7 @@ onMounted(fetchList)
   border-radius: 14px;
   background: rgba(255,255,255,0.6);
   font-size: 13px;
-  color: #2e4a4e;
+  color: #1a2b2d;
   outline: none;
   transition: border-color 0.15s;
 }
@@ -1060,6 +1225,31 @@ onMounted(fetchList)
 }
 .search-btn:hover { opacity: 0.9; }
 
+.import-date-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 20px 12px;
+}
+
+.import-date-label {
+  font-size: 12px;
+  color: #1a2b2d;
+  font-weight: 600;
+}
+
+.import-date-input {
+  width: 170px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(53, 191, 171, 0.25);
+  background: rgba(255, 255, 255, 0.65);
+  color: #1a2b2d;
+  font-size: 12px;
+  outline: none;
+}
+
 .search-results {
   max-height: 400px;
   overflow-y: auto;
@@ -1069,7 +1259,7 @@ onMounted(fetchList)
 .empty-search {
   padding: 36px 0;
   text-align: center;
-  color: #8fadb2;
+  color: #374151;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1099,12 +1289,12 @@ onMounted(fetchList)
 .search-name {
   font-size: 13px;
   font-weight: 600;
-  color: #2e4a4e;
+  color: #1a2b2d;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.search-meta { font-size: 11px; color: #8fadb2; margin-top: 2px; }
+.search-meta { font-size: 11px; color: #374151; margin-top: 2px; }
 
 .import-btn {
   padding: 6px 16px;
