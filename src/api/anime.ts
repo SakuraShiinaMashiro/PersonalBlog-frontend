@@ -56,7 +56,7 @@ export const animeApi = {
   /**
    * 导入番剧元数据
    */
-  import(data: { bgmId: number }) {
+  import(data: { bgmId: number; trackDate?: string }) {
     return request.post<any, AnimeImportResult>('/anime/import', data)
   },
   /**
@@ -88,5 +88,11 @@ export const animeApi = {
    */
   reset(animeId: number) {
     return request.put('/anime/progress/reset', { animeId })
+  },
+  /**
+   * 更新开始追番时间
+   */
+  updateTrackDate(animeId: number, trackDate: string) {
+    return request.put('/anime/track-date', { animeId, trackDate })
   }
 }
