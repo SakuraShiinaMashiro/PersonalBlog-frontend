@@ -45,6 +45,14 @@ export interface AnimeImportResult {
   message: string
 }
 
+export interface AnimeListQuery {
+  year?: number
+  season?: number
+  status?: number
+  trackDateStart?: string
+  trackDateEnd?: string
+}
+
 export const animeApi = {
   /**
    * 搜索 Bangumi 番剧
@@ -62,8 +70,8 @@ export const animeApi = {
   /**
    * 获取番剧列表
    */
-  getList(year?: number, season?: number) {
-    return request.get<any, AnimeListItem[]>('/anime/list', { params: { year, season } })
+  getList(params?: AnimeListQuery) {
+    return request.get<any, AnimeListItem[]>('/anime/list', { params })
   },
   /**
    * 切换集数观看状态
