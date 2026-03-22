@@ -246,7 +246,9 @@
               placeholder="输入番剧名称..."
               @keyup.enter="onSearch"
             />
-            <button @click="onSearch" class="search-btn">搜索</button>
+            <button @click="onSearch" class="search-btn" :disabled="searchState === 'loading'">
+              {{ searchState === 'loading' ? '搜索中...' : '搜索' }}
+            </button>
           </div>
 
           <div class="import-date-row">
@@ -263,22 +265,37 @@
           </div>
 
           <div class="search-results custom-scrollbar">
-            <div v-if="searchResults.length === 0" class="empty-search">
+            <div v-if="searchState === 'idle'" class="empty-search">
               <Search :size="40" stroke-width="1" />
               <p>搜索你想追的番剧</p>
             </div>
-            <div
-              v-for="res in searchResults"
-              :key="res.id"
-              class="search-item"
-            >
-              <img :src="res.images?.grid" referrerpolicy="no-referrer" class="search-cover" />
-              <div class="search-info">
-                <h4 class="search-name">{{ res.name_cn || res.name }}</h4>
-                <p class="search-meta">{{ res.date }}{{ getWeekDay(res.date) }} · {{ res.eps }} 话</p>
-              </div>
-              <button @click="importAnime(res)" class="import-btn">导入</button>
+            <div v-else-if="searchState === 'loading'" class="empty-search">
+              <Search :size="40" stroke-width="1" />
+              <p>正在搜索中...</p>
             </div>
+            <div v-else-if="searchState === 'empty'" class="empty-search">
+              <Search :size="40" stroke-width="1" />
+              <p>未找到与“{{ lastSearchedKeyword }}”相关的番剧</p>
+            </div>
+            <div v-else-if="searchState === 'error'" class="empty-search search-error">
+              <Search :size="40" stroke-width="1" />
+              <p>{{ searchErrorMessage }}</p>
+              <button class="search-retry-btn" @click="retrySearch">重试</button>
+            </div>
+            <template v-else>
+              <div
+                v-for="res in searchResults"
+                :key="res.id"
+                class="search-item"
+              >
+                <img :src="res.images?.grid" referrerpolicy="no-referrer" class="search-cover" />
+                <div class="search-info">
+                  <h4 class="search-name">{{ res.name_cn || res.name }}</h4>
+                  <p class="search-meta">{{ res.date }}{{ getWeekDay(res.date) }} · {{ res.eps }} 话</p>
+                </div>
+                <button @click="importAnime(res)" class="import-btn">导入</button>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -299,12 +316,17 @@ import { Plus, Search, X } from 'lucide-vue-next'
 import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
 import { useNotice } from '@/composables/useNotice'
 
+type SearchState = 'idle' | 'loading' | 'success' | 'empty' | 'error'
+
 const animeList = ref<AnimeListItem[]>([])
 const showProgress = ref(false)
 const showSearch = ref(false)
 const currentAnime = ref<AnimeListItem | null>(null)
 const keyword = ref('')
 const searchResults = ref<BangumiSubject[]>([])
+const searchState = ref<SearchState>('idle')
+const searchErrorMessage = ref('')
+const lastSearchedKeyword = ref('')
 const activeTab = ref(-1) // -1:全部
 const selectedAirYear = ref<number | null>(null)
 const selectedAirSeason = ref<number | null>(null)
@@ -326,6 +348,11 @@ watch(editingTrackDate, (newVal, oldVal) => {
   if (!newVal && oldVal) {
     editingTrackDate.value = oldVal
   }
+})
+
+watch(showSearch, (visible) => {
+  if (visible) return
+  resetSearchState()
 })
 
 const statusTabs = [
@@ -520,12 +547,60 @@ const toggleEp = async (index: number) => {
 }
 
 const onSearch = async () => {
-  if (!keyword.value) return
+  if (searchState.value === 'loading') return
+
+  const normalizedKeyword = keyword.value.trim()
+  keyword.value = normalizedKeyword
+  if (!normalizedKeyword) {
+    openNotice('请输入搜索关键词')
+    return
+  }
+
+  lastSearchedKeyword.value = normalizedKeyword
+  searchState.value = 'loading'
+  searchErrorMessage.value = ''
+
   try {
-    searchResults.value = await animeApi.search(keyword.value)
+    searchResults.value = await animeApi.search(normalizedKeyword)
+    searchState.value = searchResults.value.length > 0 ? 'success' : 'empty'
   } catch (e) {
+    searchResults.value = []
+    searchState.value = 'error'
+    searchErrorMessage.value = resolveSearchErrorMessage(e)
     console.error('搜索失败', e)
   }
+}
+
+const retrySearch = () => {
+  if (!lastSearchedKeyword.value) return
+  keyword.value = lastSearchedKeyword.value
+  onSearch()
+}
+
+const resetSearchState = () => {
+  keyword.value = ''
+  searchResults.value = []
+  searchState.value = 'idle'
+  searchErrorMessage.value = ''
+  lastSearchedKeyword.value = ''
+}
+
+const resolveSearchErrorMessage = (error: unknown) => {
+  const fallbackMessage = '搜索失败，请稍后重试'
+  if (!error || typeof error !== 'object') {
+    return fallbackMessage
+  }
+
+  const axiosLikeError = error as {
+    message?: string
+    response?: { data?: { message?: string } }
+  }
+
+  const rawMessage = axiosLikeError.response?.data?.message || axiosLikeError.message || fallbackMessage
+  if (/timeout|超时/i.test(rawMessage)) {
+    return '搜索请求超时，请稍后重试'
+  }
+  return rawMessage
 }
 
 const importAnime = async (row: BangumiSubject) => {
@@ -1351,6 +1426,10 @@ onMounted(fetchList)
   transition: opacity 0.15s;
 }
 .search-btn:hover { opacity: 0.9; }
+.search-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
 
 .import-date-row {
   display: flex;
@@ -1392,6 +1471,26 @@ onMounted(fetchList)
   align-items: center;
   gap: 8px;
   font-size: 13px;
+}
+
+.search-error {
+  color: #b91c1c;
+}
+
+.search-retry-btn {
+  margin-top: 4px;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #35bfab, #26a69a);
+  cursor: pointer;
+}
+
+.search-retry-btn:hover {
+  opacity: 0.9;
 }
 
 .search-item {
