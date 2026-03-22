@@ -11,30 +11,55 @@
           <div class="page-icon">🎬</div>
           <div>
             <h1 class="page-title">追番管理</h1>
-            <p class="page-sub">{{ animeList.length }} 部番剧 · {{ currentSeasonLabel }}</p>
+            <p class="page-sub">已显示 {{ filteredList.length }} / {{ animeList.length }} 部番剧</p>
           </div>
         </div>
 
         <div class="top-right">
-          <!-- 年份 -->
-          <input
-            v-model="selectedYear"
-            type="number"
-            class="year-input"
-            @change="fetchList()"
-            placeholder="年份"
-          />
-          <!-- 季度 -->
-          <div class="season-tabs">
-            <button
-              v-for="s in [1, 2, 3, 4]"
-              :key="s"
-              @click="selectedSeason = s; fetchList()"
-              :class="['season-btn', selectedSeason === s ? 'active' : '']"
-            >
-              {{ getSeasonLabel(s) }}
-            </button>
+          <div class="filter-field">
+            <span class="field-label">播出年份</span>
+            <select v-model="selectedAirYear" class="filter-select">
+              <option :value="null">全部年份</option>
+              <option v-for="year in availableAirYears" :key="year" :value="year">
+                {{ year }}年
+              </option>
+            </select>
           </div>
+
+          <div class="filter-field">
+            <span class="field-label">播出季度</span>
+            <select v-model="selectedAirSeason" class="filter-select" :disabled="!selectedAirYear">
+              <option :value="null">全部季度</option>
+              <option v-for="season in availableAirSeasons" :key="season" :value="season">
+                {{ getSeasonLabel(season) }}
+              </option>
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <span class="field-label">追番起始时间</span>
+            <input
+              v-model="trackDateStart"
+              type="date"
+              class="filter-date-input"
+              :max="todayDateString"
+              @change="handleTrackDateRangeChange"
+            />
+          </div>
+
+          <div class="filter-field">
+            <span class="field-label">追番终止时间</span>
+            <input
+              v-model="trackDateEnd"
+              type="date"
+              class="filter-date-input"
+              :max="todayDateString"
+              @change="handleTrackDateRangeChange"
+            />
+          </div>
+
+          <button class="reset-btn" @click="resetFilters">重置筛选</button>
+
           <!-- 添加按钮 -->
           <button @click="openSearchModal" class="add-btn">
             <Plus :size="16" />
@@ -119,7 +144,7 @@
       <!-- 空状态 -->
       <div v-else class="empty-state card">
         <div class="empty-icon">🎌</div>
-        <p class="empty-text">这个季度还没有番剧，快去添加吧！</p>
+        <p class="empty-text">当前筛选条件下暂无追番记录</p>
         <button @click="openSearchModal" class="add-btn">
           <Plus :size="16" /> 添加追番
         </button>
@@ -176,7 +201,7 @@
           <!-- 集数格子 -->
           <div class="ep-grid custom-scrollbar">
             <button
-              v-for="i in currentAnime?.subject.eps"
+              v-for="i in episodeDisplayList"
               :key="i"
               @click="toggleEp(i)"
               :class="['ep-btn', isWatched(i) ? 'ep-watched' : 'ep-unwatched']"
@@ -274,8 +299,6 @@ import { Plus, Search, X } from 'lucide-vue-next'
 import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
 import { useNotice } from '@/composables/useNotice'
 
-const selectedYear = ref(new Date().getFullYear().toString())
-const selectedSeason = ref(Math.floor(new Date().getMonth() / 3) + 1)
 const animeList = ref<AnimeListItem[]>([])
 const showProgress = ref(false)
 const showSearch = ref(false)
@@ -283,6 +306,10 @@ const currentAnime = ref<AnimeListItem | null>(null)
 const keyword = ref('')
 const searchResults = ref<BangumiSubject[]>([])
 const activeTab = ref(-1) // -1:全部
+const selectedAirYear = ref<number | null>(null)
+const selectedAirSeason = ref<number | null>(null)
+const trackDateStart = ref('')
+const trackDateEnd = ref('')
 const quickEpisode = ref(1)
 const todayDateString = new Date().toISOString().slice(0, 10)
 const importTrackDate = ref(todayDateString)
@@ -308,34 +335,104 @@ const statusTabs = [
   { value: 2,  label: '已看完', dotClass: 'dot-done' }
 ]
 
+const availableAirYears = computed(() => {
+  return Array.from(
+    new Set(animeList.value.map(item => item.subject.airYear).filter((year): year is number => !!year))
+  ).sort((a, b) => b - a)
+})
+
+const availableAirSeasons = computed(() => {
+  if (!selectedAirYear.value) return [] as number[]
+  return Array.from(
+    new Set(
+      animeList.value
+        .filter(item => item.subject.airYear === selectedAirYear.value)
+        .map(item => item.subject.airSeason)
+        .filter((season): season is number => !!season)
+    )
+  ).sort((a, b) => a - b)
+})
+
+const baseFilteredList = computed(() => {
+  let list = [...animeList.value]
+
+  if (selectedAirYear.value) {
+    list = list.filter(i => i.subject.airYear === selectedAirYear.value)
+  }
+
+  if (selectedAirSeason.value) {
+    list = list.filter(i => i.subject.airSeason === selectedAirSeason.value)
+  }
+
+  if (trackDateStart.value) {
+    list = list.filter(i => !!i.progress.trackDate && i.progress.trackDate >= trackDateStart.value)
+  }
+
+  if (trackDateEnd.value) {
+    list = list.filter(i => !!i.progress.trackDate && i.progress.trackDate <= trackDateEnd.value)
+  }
+
+  return list
+})
+
 const filteredList = computed(() => {
   const list = activeTab.value === -1
-    ? animeList.value
-    : animeList.value.filter(i => i.progress.status === activeTab.value)
+    ? baseFilteredList.value
+    : baseFilteredList.value.filter(i => i.progress.status === activeTab.value)
 
   return [...list].sort((a, b) => {
-    const aDate = a.progress.trackDate || ''
-    const bDate = b.progress.trackDate || ''
-    return bDate.localeCompare(aDate)
+    const aWatch = a.progress.lastWatchAt || ''
+    const bWatch = b.progress.lastWatchAt || ''
+    if (aWatch !== bWatch) {
+      return bWatch.localeCompare(aWatch)
+    }
+
+    const aTrack = a.progress.trackDate || ''
+    const bTrack = b.progress.trackDate || ''
+    if (aTrack !== bTrack) {
+      return bTrack.localeCompare(aTrack)
+    }
+
+    return b.subject.id - a.subject.id
   })
 })
 
 const getCountByStatus = (status: number) => {
-  if (status === -1) return animeList.value.length
-  return animeList.value.filter(i => i.progress.status === status).length
+  if (status === -1) return baseFilteredList.value.length
+  return baseFilteredList.value.filter(i => i.progress.status === status).length
 }
-
-const currentSeasonLabel = computed(() => {
-  return `${selectedYear.value}年 ${getSeasonLabel(selectedSeason.value)}`
-})
 
 const fetchList = async () => {
   try {
-    animeList.value = await animeApi.getList(Number(selectedYear.value), selectedSeason.value)
+    animeList.value = await animeApi.getList()
   } catch (e) {
     console.error('获取列表失败', e)
   }
 }
+
+const handleTrackDateRangeChange = () => {
+  if (trackDateStart.value && trackDateEnd.value && trackDateStart.value > trackDateEnd.value) {
+    trackDateEnd.value = trackDateStart.value
+    openNotice('开始日期不能晚于结束日期，已自动调整结束日期')
+  }
+}
+
+const resetFilters = () => {
+  selectedAirYear.value = null
+  selectedAirSeason.value = null
+  trackDateStart.value = ''
+  trackDateEnd.value = ''
+}
+
+watch(selectedAirYear, () => {
+  if (!selectedAirYear.value) {
+    selectedAirSeason.value = null
+    return
+  }
+  if (selectedAirSeason.value && !availableAirSeasons.value.includes(selectedAirSeason.value)) {
+    selectedAirSeason.value = null
+  }
+})
 
 const calculateProgress = (item: AnimeListItem) => {
   if (!item.subject.eps || item.subject.eps === 0) return 0
@@ -364,6 +461,12 @@ const quickEpisodeOptions = computed(() => {
   const total = currentAnime.value?.subject.eps ?? 0
   if (total <= 0) return [] as number[]
   return Array.from({ length: total }, (_, i) => i + 1)
+})
+
+const episodeDisplayList = computed(() => {
+  const total = currentAnime.value?.subject.eps ?? 0
+  if (total <= 0) return [] as number[]
+  return Array.from({ length: total }, (_, i) => total - i)
 })
 
 const isWatched = (index: number) => currentAnime.value?.progress.watchedEps.includes(index) ?? false
@@ -662,51 +765,74 @@ onMounted(fetchList)
 
 .top-right {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
   flex-wrap: wrap;
 }
 
-.year-input {
-  width: 80px;
-  padding: 7px 10px;
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #5f7f83;
+  line-height: 1;
+  text-align: center;
+}
+
+.filter-select,
+.filter-date-input {
+  height: 34px;
+  padding: 0 10px;
   border: 1px solid rgba(53, 191, 171, 0.3);
   border-radius: 12px;
-  background: rgba(255,255,255,0.6);
+  background: rgba(255, 255, 255, 0.6);
   font-size: 13px;
   color: #1a2b2d;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background-color 0.15s;
 }
-.year-input:focus {
+
+.filter-select {
+  min-width: 106px;
+}
+
+.filter-date-input {
+  min-width: 146px;
+}
+
+.filter-select:focus,
+.filter-date-input:focus {
   border-color: #35bfab;
 }
 
-.season-tabs {
-  display: flex;
-  background: rgba(255,255,255,0.5);
-  border: 1px solid rgba(255,255,255,0.7);
-  border-radius: 14px;
-  padding: 3px;
-  gap: 2px;
+.filter-select:disabled {
+  background: rgba(255, 255, 255, 0.35);
+  color: #8fadb2;
+  cursor: not-allowed;
 }
 
-.season-btn {
-  padding: 6px 12px;
+.reset-btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(53, 191, 171, 0.28);
+  background: rgba(255, 255, 255, 0.62);
+  color: #2f4e50;
   font-size: 12px;
-  border-radius: 10px;
-  border: none;
-  background: transparent;
-  color: #6a9ca0;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.15s, color 0.15s;
-}
-.season-btn.active {
-  background: white;
-  color: #35bfab;
   font-weight: 700;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+.reset-btn:hover {
+  border-color: rgba(53, 191, 171, 0.55);
+  color: #1a2b2d;
 }
 
 .add-btn {
@@ -723,6 +849,7 @@ onMounted(fetchList)
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(53, 191, 171, 0.35);
   transition: opacity 0.15s, transform 0.15s;
+  align-self: flex-end;
 }
 .add-btn:hover {
   opacity: 0.9;
