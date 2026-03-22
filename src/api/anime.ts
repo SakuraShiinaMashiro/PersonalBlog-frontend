@@ -102,5 +102,11 @@ export const animeApi = {
    */
   updateTrackDate(animeId: number, trackDate: string) {
     return request.put('/anime/track-date', { animeId, trackDate })
+  },
+  /**
+   * 删除追番记录
+   */
+  deleteAnime(animeId: number) {
+    return request.delete(`/anime/${animeId}`)
   }
 }
