@@ -38,7 +38,7 @@ const handleConfirm = () => {
 .notice-mask {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 2100;
   background: rgba(30, 50, 52, 0.42);
   backdrop-filter: blur(6px);
   display: flex;

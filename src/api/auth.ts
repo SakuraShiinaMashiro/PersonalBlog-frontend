@@ -2,7 +2,12 @@ import request from '../utils/request'
 
 export interface OwnerLoginDTO {
   username: string
-  password?: string
+  password: string
+}
+
+export interface OwnerLoginResponse {
+  needEmailVerify: boolean
+  email: string
 }
 
 export interface EmailVerifyDTO {
@@ -19,7 +24,7 @@ export const authApi = {
     })
   },
   ownerLogin: (data: OwnerLoginDTO) => {
-    return request.post<{ needEmailVerify: boolean }>('/auth/owner/login', data)
+    return request.post<OwnerLoginResponse>('/auth/owner/login', data)
   },
   sendEmailCode: (email: string) => {
     return request.post<{ sent: boolean }>('/auth/owner/send-email-code', { email })

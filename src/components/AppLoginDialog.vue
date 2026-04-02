@@ -14,13 +14,13 @@
           <div v-if="step === 1" class="step-content">
             <div class="oauth-group">
               <button @click="handleOAuth('github')" class="oauth-btn" title="GitHub">
-                <img src="https://github.com/favicon.ico" alt="GitHub" />
+                <img src="@/assets/icons/oauth/github.ico" alt="GitHub" />
               </button>
               <button @click="handleOAuth('google')" class="oauth-btn" title="Google">
-                <img src="https://google.com/favicon.ico" alt="Google" />
+                <img src="@/assets/icons/oauth/google.ico" alt="Google" />
               </button>
               <button @click="handleOAuth('sina')" class="oauth-btn" title="Sina">
-                <img src="https://weibo.com/favicon.ico" alt="Sina" />
+                <img src="@/assets/icons/oauth/weibo.ico" alt="Sina" />
               </button>
             </div>
             
@@ -53,13 +53,19 @@
 
           <!-- Step 3: Email Verification -->
           <div v-else-if="step === 3" class="step-content">
-            <p class="email-hint">验证码已发送至博主邮箱</p>
+            <p class="email-hint">
+              {{ codeSent ? '验证码已发送至博主邮箱' : '请发送验证码至博主邮箱' }}
+            </p>
             <div class="form-group">
               <div class="input-wrap">
                 <Mail :size="16" class="input-icon" />
-                <input v-model="verifyForm.code" type="text" placeholder="6位验证码" class="login-input" maxlength="6" />
-                <button :disabled="countdown > 0 || loading" @click="resendCode" class="resend-btn">
-                  {{ countdown > 0 ? `${countdown}s` : '重新获取' }}
+                <input v-model="ownerEmail" type="text" class="login-input" disabled />
+              </div>
+              <div class="input-wrap">
+                <Lock :size="16" class="input-icon" />
+                <input v-model="verifyForm.code" type="text" placeholder="6位验证码" class="login-input code-input" maxlength="6" />
+                <button :disabled="countdown > 0 || loading" @click="sendEmailCode" class="resend-btn">
+                  {{ countdown > 0 ? `${countdown}s` : (codeSent ? '重新获取' : '发送验证码') }}
                 </button>
               </div>
               <button :disabled="loading" @click="handleVerifyCode" class="submit-btn">
@@ -72,6 +78,7 @@
       </div>
     </div>
   </Transition>
+  <AppNoticeDialog v-model="noticeVisible" :message="noticeMessage" />
 </template>
 
 <script setup lang="ts">
@@ -95,6 +102,8 @@ const step = ref(1)
 const loading = ref(false)
 const countdown = ref(0)
 const ownerProfile = ref<OwnerProfile | null>(null)
+const ownerEmail = ref('')
+const codeSent = ref(false)
 
 const loginForm = reactive({
   username: '',
@@ -122,6 +131,8 @@ const close = () => {
     loginForm.username = ''
     loginForm.password = ''
     verifyForm.code = ''
+    ownerEmail.value = ''
+    codeSent.value = false
   }, 300)
 }
 
@@ -140,7 +151,6 @@ const onKeyFileChange = async (e: Event) => {
       const res = await authApi.verifyOwnerKey(target.files[0]) as any
       if (res.unlock) {
         step.value = 2
-        openNotice('密钥验证成功，请输入账号密码')
       }
     } catch (err: any) {
       openNotice(err.message || '密钥验证失败')
@@ -160,8 +170,9 @@ const handleOwnerLogin = async () => {
     const res = await authApi.ownerLogin(loginForm) as any
     if (res.needEmailVerify) {
       step.value = 3
-      startCountdown()
-      await authApi.sendEmailCode('') // Backend sends to owner's stored email
+      ownerEmail.value = res.email || ''
+      codeSent.value = false
+      countdown.value = 0
     }
   } catch (err: any) {
     openNotice(err.message || '登录验证失败')
@@ -171,10 +182,17 @@ const handleOwnerLogin = async () => {
 }
 
 const handleVerifyCode = async () => {
-  if (!verifyForm.code) return
+  if (!verifyForm.code) {
+    openNotice('请输入验证码')
+    return
+  }
+  if (!ownerEmail.value) {
+    openNotice('博主邮箱缺失，请重新登录')
+    return
+  }
   loading.value = true
   try {
-    const res = await authApi.verifyEmailCode({ email: '', code: verifyForm.code }) as any
+    const res = await authApi.verifyEmailCode({ email: ownerEmail.value, code: verifyForm.code }) as any
     authStore.setTokens(res.token, res.refreshToken)
     await authStore.fetchUser()
     openNotice('登录成功')
@@ -186,13 +204,18 @@ const handleVerifyCode = async () => {
   }
 }
 
-const resendCode = async () => {
+const sendEmailCode = async () => {
   try {
-    await authApi.sendEmailCode('')
-    openNotice('验证码已重发')
+    if (!ownerEmail.value) {
+      openNotice('博主邮箱缺失，请重新登录')
+      return
+    }
+    await authApi.sendEmailCode(ownerEmail.value)
+    openNotice(codeSent.value ? '验证码已重发' : '验证码已发送')
+    codeSent.value = true
     startCountdown()
   } catch (err: any) {
-    openNotice('发送失败')
+    openNotice(err.message || '发送失败')
   }
 }
 
@@ -357,6 +380,10 @@ const startCountdown = () => {
 }
 .login-input:focus { border-color: #35bfab; }
 
+.code-input {
+  padding-right: 70px;
+}
+
 .submit-btn {
   background: #35bfab;
   color: white;
@@ -385,17 +412,26 @@ const startCountdown = () => {
   margin-bottom: 16px;
 }
 
+
 .resend-btn {
   position: absolute;
-  right: 12px;
+  right: 10px;
   background: none;
   border: none;
-  color: #35bfab;
-  font-weight: 600;
+  color: #94a3b8;
+  font-weight: 700;
   font-size: 12px;
+  padding: 0;
   cursor: pointer;
+  transition: opacity 0.2s;
 }
-.resend-btn:disabled { color: #94a3b8; }
+.resend-btn:hover {
+  color: #35bfab;
+}
+.resend-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 .hidden { display: none; }
 
