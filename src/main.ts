@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
+import { createPinia } from 'pinia'
 import './style.css'
 import App from './App.vue'
 
@@ -76,10 +77,17 @@ const router = createRouter({
       path: '/note/:id',
       name: 'noteDetail',
       component: () => import('./views/NoteDetailView.vue')
+    },
+    {
+      path: '/oauth/callback/:provider',
+      name: 'oauthCallback',
+      component: () => import('./views/OAuthCallbackView.vue')
     }
   ]
 })
 
 const app = createApp(App)
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
 app.mount('#app')

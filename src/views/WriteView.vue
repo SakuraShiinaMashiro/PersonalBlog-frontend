@@ -99,16 +99,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { MdEditor, type ToolbarNames } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 import { ArrowLeft, Send, X } from 'lucide-vue-next'
-import { noteApi, NoteSaveParams } from '@/api/note'
+import { noteApi, type NoteSaveParams } from '@/api/note'
+import { useAuthStore } from '@/stores/auth'
 import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
 import { useNotice } from '@/composables/useNotice'
 
 const router = useRouter()
+const authStore = useAuthStore()
+const { noticeVisible, noticeMessage, openNotice } = useNotice()
+
+onMounted(() => {
+  if (!authStore.isOwner) {
+    openNotice('权限不足：仅博主可进入创作模式')
+    setTimeout(() => {
+      router.push('/')
+    }, 1500)
+  }
+})
 
 const noteForm = reactive<NoteSaveParams>({
   title: '',
@@ -120,7 +132,6 @@ const noteForm = reactive<NoteSaveParams>({
 })
 
 const newTag = ref('')
-const { noticeVisible, noticeMessage, openNotice } = useNotice()
 
 const toolbars: ToolbarNames[] = [
   'bold', 'underline', 'italic', '-', 'strikeThrough', 'title', 'sub', 'sup', 'quote', 'unorderedList', 'orderedList', 'task', '-', 'codeRow', 'code', 'link', 'image', 'table', 'mermaid', 'katex', '-', 'revoke', 'next', 'save', '=', 'pageFullscreen', 'fullscreen', 'preview', 'htmlPreview', 'catalog'

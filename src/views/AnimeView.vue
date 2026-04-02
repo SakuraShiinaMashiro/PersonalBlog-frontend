@@ -192,9 +192,10 @@
                 type="date"
                 class="track-date-input"
                 :max="todayDateString"
+                :disabled="!authStore.isOwner"
                 required
               />
-              <button class="quick-btn" @click="handleTrackDateUpdate">保存时间</button>
+              <button class="quick-btn" :disabled="!authStore.isOwner" @click="handleTrackDateUpdate">保存时间</button>
             </div>
           </div>
 
@@ -204,6 +205,7 @@
               v-for="i in episodeDisplayList"
               :key="i"
               @click="toggleEp(i)"
+              :disabled="!authStore.isOwner"
               :class="['ep-btn', isWatched(i) ? 'ep-watched' : 'ep-unwatched']"
             >
               {{ i < 10 ? '0' + i : i }}
@@ -212,17 +214,17 @@
 
           <div class="quick-actions">
             <div class="quick-row">
-              <select v-model.number="quickEpisode" class="quick-select">
+              <select v-model.number="quickEpisode" class="quick-select" :disabled="!authStore.isOwner">
                 <option v-for="ep in quickEpisodeOptions" :key="ep" :value="ep">
                   第{{ ep }}集
                 </option>
               </select>
-              <button class="quick-btn" @click="handleSeenTo">看到第N集</button>
-              <button class="quick-btn quick-delete" :disabled="deletingAnime" @click="openDeleteConfirm">删除追番</button>
+              <button class="quick-btn" :disabled="!authStore.isOwner" @click="handleSeenTo">看到第N集</button>
+              <button class="quick-btn quick-delete" :disabled="deletingAnime || !authStore.isOwner" @click="openDeleteConfirm">删除追番</button>
             </div>
             <div class="quick-row quick-row-two">
-              <button class="quick-btn quick-complete" @click="handleComplete">一键看完</button>
-              <button class="quick-btn quick-reset" @click="handleReset">重置进度</button>
+              <button class="quick-btn quick-complete" :disabled="!authStore.isOwner" @click="handleComplete">一键看完</button>
+              <button class="quick-btn quick-reset" :disabled="!authStore.isOwner" @click="handleReset">重置进度</button>
             </div>
           </div>
         </div>
@@ -294,7 +296,7 @@
                   <h4 class="search-name">{{ res.name_cn || res.name }}</h4>
                   <p class="search-meta">{{ res.date }}{{ getWeekDay(res.date) }} · {{ res.eps }} 话</p>
                 </div>
-                <button @click="importAnime(res)" class="import-btn">导入</button>
+                <button @click="importAnime(res)" class="import-btn" :disabled="!authStore.isOwner">导入</button>
               </div>
             </template>
           </div>
@@ -324,6 +326,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 
 import { animeApi, AnimeListItem, BangumiSubject } from '@/api/anime'
+import { useAuthStore } from '@/stores/auth'
 import { Plus, Search, X } from 'lucide-vue-next'
 import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
@@ -331,6 +334,7 @@ import { useNotice } from '@/composables/useNotice'
 
 type SearchState = 'idle' | 'loading' | 'success' | 'empty' | 'error'
 
+const authStore = useAuthStore()
 const animeList = ref<AnimeListItem[]>([])
 const showProgress = ref(false)
 const showSearch = ref(false)
@@ -1378,6 +1382,23 @@ onMounted(fetchList)
   border-color: rgba(53, 191, 171, 0.3);
   color: #35bfab;
   transform: translateY(-1px);
+}
+
+.ep-readonly {
+  cursor: default !important;
+}
+.ep-readonly:hover {
+  transform: none !important;
+  background: rgba(255, 255, 255, 0.45) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  color: #374151 !important;
+}
+
+.read-only-hint {
+  padding: 0 20px 20px;
+  text-align: center;
+  font-size: 13px;
+  color: #5f7f83;
 }
 
 .quick-actions {

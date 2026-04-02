@@ -3,18 +3,31 @@
     <main class="main-content">
       <router-view />
     </main>
+    <AppLoginDialog :show="authStore.showLoginDialog" @close="authStore.showLoginDialog = false" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import AppLoginDialog from '@/components/AppLoginDialog.vue'
+
+const authStore = useAuthStore()
+
+onMounted(() => {
+  if (authStore.accessToken) {
+    authStore.fetchUser()
+  }
+})
 </script>
 
 <style>
 body {
   margin: 0;
   background: #f5f5f5;
-  font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  color: #2e4a4e;
+  color: #333;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .app-wrapper {
@@ -27,9 +40,10 @@ body {
   flex: 1;
 }
 
-/* Global scrollbar styling */
+/* 全局滚动条样式 */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;

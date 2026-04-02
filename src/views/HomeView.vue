@@ -12,10 +12,11 @@
         <div class="card user-card">
           <div class="user-header">
             <div class="user-avatar">
-              <span>C</span>
+              <img v-if="ownerProfile.avatarUrl" :src="ownerProfile.avatarUrl" alt="avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover;" />
+              <span v-else>{{ ownerProfile.username ? ownerProfile.username.charAt(0).toUpperCase() : 'C' }}</span>
             </div>
             <div class="user-info">
-              <span class="user-name">Challenge</span>
+              <span class="user-name">{{ ownerProfile.username || 'Owner' }}</span>
               <span class="user-badge">开发中</span>
             </div>
           </div>
@@ -86,7 +87,7 @@
         <div class="card greet-card">
           <div class="greet-avatar">🐱</div>
           <div class="greet-text">{{ greetingText }}</div>
-          <div class="greet-name">I'm <span class="greet-highlight">Challenge</span>, Nice to<br/>meet you!</div>
+          <div class="greet-name">I'm <span class="greet-highlight">{{ ownerProfile.username || 'Owner' }}</span>, Nice to<br/>meet you!</div>
         </div>
 
 
@@ -109,7 +110,7 @@
       <div class="col-right">
         <!-- 写笔记按钮 -->
         <div class="card write-card">
-          <router-link to="/write" class="write-btn">
+          <router-link v-if="authStore.isOwner" to="/write" class="write-btn">
             <Edit3 :size="18" />
             <span>写文章</span>
           </router-link>
@@ -117,6 +118,9 @@
             <a href="https://github.com" target="_blank" class="social-icon" title="Github"><Github :size="16" /></a>
             <a href="https://bilibili.com" target="_blank" class="social-icon" title="Bilibili"><Youtube :size="16" /></a>
             <a href="mailto:czf@example.com" class="social-icon" title="Mail"><Mail :size="16" /></a>
+            <button class="social-icon" style="border:none; cursor:pointer;" title="Account" @click="handleAccountClick">
+              <User :size="16" />
+            </button>
           </div>
         </div>
 
@@ -186,6 +190,14 @@
       </div>
     </div>
 
+
+    <AppConfirmDialog
+      v-model="showLogoutConfirm"
+      title="退出登录"
+      message="确认要退出当前账号吗？"
+      @confirm="doLogout"
+    />
+
     <AppNoticeDialog
       v-model="noticeVisible"
       :message="noticeMessage"
@@ -197,11 +209,15 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   BookOpen, PenLine, Sparkles, Tv, Info,
-  Edit3, Grid, Github, Youtube, Mail, Heart
+  Edit3, Grid, Github, Youtube, Mail, Heart, User
 } from 'lucide-vue-next'
 import { noteApi } from '@/api/note'
 import { animeApi } from '@/api/anime'
+import { siteApi } from '@/api/site'
+import { authApi } from '@/api/auth'
+import { useAuthStore } from '@/stores/auth'
 import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
+import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
 import { useNotice } from '@/composables/useNotice'
 
 const { noticeVisible, noticeMessage, openNotice } = useNotice()
@@ -211,6 +227,30 @@ const showDevAlert = () => {
 }
 
 const showAboutModal = ref(false)
+
+const authStore = useAuthStore()
+const ownerProfile = ref({ username: 'Challenge', avatarUrl: '' })
+
+const showLogoutConfirm = ref(false)
+
+const handleAccountClick = () => {
+  if (authStore.isLoggedIn) {
+    showLogoutConfirm.value = true
+  } else {
+    authStore.showLoginDialog = true
+  }
+}
+
+const doLogout = async () => {
+  if (authStore.refreshToken) {
+    try {
+      await authApi.logout(authStore.refreshToken)
+    } catch(e) {}
+  }
+  authStore.clearAuth()
+  showLogoutConfirm.value = false
+  openNotice('已登出')
+}
 
 // ======= 时钟 =======
 const currentTime = ref('')
@@ -315,11 +355,16 @@ const mockRecommend = ref([
   }
 ])
 
-onMounted(() => {
+onMounted(async () => {
   updateTime()
   timeInterval = setInterval(updateTime, 1000)
   fetchLatestNotes()
   fetchAnimeStats()
+  authStore.fetchUser()
+  try {
+    const profile = await siteApi.getOwnerProfile()
+    ownerProfile.value = profile as any
+  } catch (e) {}
 })
 
 onUnmounted(() => {
