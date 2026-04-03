@@ -54,7 +54,7 @@
           <!-- Step 3: Email Verification -->
           <div v-else-if="step === 3" class="step-content">
             <p class="email-hint">
-              {{ codeSent ? '验证码已发送至博主邮箱' : '请发送验证码至博主邮箱' }}
+              {{ sendingCode ? '验证码发送中，请稍候...' : (codeSent ? '验证码已发送，若未收到可稍后重试' : '请发送验证码至博主邮箱') }}
             </p>
             <div class="form-group">
               <div class="input-wrap">
@@ -63,8 +63,8 @@
               </div>
               <div class="input-wrap">
                 <Lock :size="16" class="input-icon" />
-                <input v-model="verifyForm.code" type="text" placeholder="6位验证码" class="login-input code-input" maxlength="6" />
-                <button :disabled="countdown > 0 || loading" @click="sendEmailCode" class="resend-btn">
+                <input v-model="verifyForm.code" type="text" placeholder="6位验证码" class="login-input code-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" @input="handleCodeInput" />
+                <button :disabled="countdown > 0 || sendingCode" @click="sendEmailCode" class="resend-btn">
                   {{ countdown > 0 ? `${countdown}s` : (codeSent ? '重新获取' : '发送验证码') }}
                 </button>
               </div>
@@ -104,6 +104,7 @@ const countdown = ref(0)
 const ownerProfile = ref<OwnerProfile | null>(null)
 const ownerEmail = ref('')
 const codeSent = ref(false)
+const sendingCode = ref(false)
 
 const loginForm = reactive({
   username: '',
@@ -171,6 +172,7 @@ const handleOwnerLogin = async () => {
     if (res.needEmailVerify) {
       step.value = 3
       ownerEmail.value = res.email || ''
+      verifyForm.code = ''
       codeSent.value = false
       countdown.value = 0
     }
@@ -182,7 +184,8 @@ const handleOwnerLogin = async () => {
 }
 
 const handleVerifyCode = async () => {
-  if (!verifyForm.code) {
+  const normalizedCode = verifyForm.code.trim()
+  if (!normalizedCode) {
     openNotice('请输入验证码')
     return
   }
@@ -192,10 +195,11 @@ const handleVerifyCode = async () => {
   }
   loading.value = true
   try {
-    const res = await authApi.verifyEmailCode({ email: ownerEmail.value, code: verifyForm.code }) as any
+    const res = await authApi.verifyEmailCode({ email: ownerEmail.value, code: normalizedCode }) as any
     authStore.setTokens(res.token, res.refreshToken)
     await authStore.fetchUser()
     openNotice('登录成功')
+    loading.value = false
     close()
   } catch (err: any) {
     openNotice(err.message || '验证码错误')
@@ -210,12 +214,15 @@ const sendEmailCode = async () => {
       openNotice('博主邮箱缺失，请重新登录')
       return
     }
+    sendingCode.value = true
     await authApi.sendEmailCode(ownerEmail.value)
     openNotice(codeSent.value ? '验证码已重发' : '验证码已发送')
     codeSent.value = true
     startCountdown()
   } catch (err: any) {
     openNotice(err.message || '发送失败')
+  } finally {
+    sendingCode.value = false
   }
 }
 
@@ -225,6 +232,11 @@ const startCountdown = () => {
     countdown.value--
     if (countdown.value <= 0) clearInterval(timer)
   }, 1000)
+}
+
+const handleCodeInput = (e: Event) => {
+  const target = e.target as HTMLInputElement
+  verifyForm.code = target.value.replace(/\D/g, '')
 }
 </script>
 
