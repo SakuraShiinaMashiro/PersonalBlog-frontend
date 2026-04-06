@@ -118,8 +118,9 @@
             <a href="https://github.com" target="_blank" class="social-icon" title="Github"><Github :size="16" /></a>
             <a href="https://bilibili.com" target="_blank" class="social-icon" title="Bilibili"><Youtube :size="16" /></a>
             <a href="mailto:czf@example.com" class="social-icon" title="Mail"><Mail :size="16" /></a>
-            <button class="social-icon" style="border:none; cursor:pointer;" title="Account" @click="handleAccountClick">
-              <User :size="16" />
+            <button class="social-icon" style="border:none; cursor:pointer;" :title="authStore.isLoggedIn ? '退出登录' : '登录'" @click="handleAccountClick">
+              <LogOut v-if="authStore.isLoggedIn" :size="16" />
+              <User v-else :size="16" />
             </button>
           </div>
         </div>
@@ -209,7 +210,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   BookOpen, PenLine, Sparkles, Tv, Info,
-  Edit3, Grid, Github, Youtube, Mail, Heart, User
+  Edit3, Grid, Github, Youtube, Mail, Heart, User, LogOut
 } from 'lucide-vue-next'
 import { noteApi } from '@/api/note'
 import { animeApi } from '@/api/anime'
