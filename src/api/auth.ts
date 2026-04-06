@@ -5,16 +5,6 @@ export interface OwnerLoginDTO {
   password: string
 }
 
-export interface OwnerLoginResponse {
-  needEmailVerify: boolean
-  email: string
-}
-
-export interface EmailVerifyDTO {
-  email: string
-  code: string
-}
-
 export const authApi = {
   verifyOwnerKey: (file: File) => {
     const formData = new FormData()
@@ -24,13 +14,7 @@ export const authApi = {
     })
   },
   ownerLogin: (data: OwnerLoginDTO) => {
-    return request.post<OwnerLoginResponse>('/auth/owner/login', data)
-  },
-  sendEmailCode: (email: string) => {
-    return request.post<{ sent: boolean }>('/auth/owner/send-email-code', { email })
-  },
-  verifyEmailCode: (data: EmailVerifyDTO) => {
-    return request.post<{ token: string; refreshToken: string }>('/auth/owner/email-verify', data)
+    return request.post<{ token: string; refreshToken: string }>('/auth/owner/login', data)
   },
   logout: (refreshToken: string) => {
     return request.post('/auth/logout', { refreshToken })

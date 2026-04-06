@@ -51,29 +51,6 @@
             </div>
           </div>
 
-          <!-- Step 3: Email Verification -->
-          <div v-else-if="step === 3" class="step-content">
-            <p class="email-hint">
-              {{ sendingCode ? '验证码发送中，请稍候...' : (codeSent ? '验证码已发送，若未收到可稍后重试' : '请发送验证码至博主邮箱') }}
-            </p>
-            <div class="form-group">
-              <div class="input-wrap">
-                <Mail :size="16" class="input-icon" />
-                <input v-model="ownerEmail" type="text" class="login-input" disabled />
-              </div>
-              <div class="input-wrap">
-                <Lock :size="16" class="input-icon" />
-                <input v-model="verifyForm.code" type="text" placeholder="6位验证码" class="login-input code-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" @input="handleCodeInput" />
-                <button :disabled="countdown > 0 || sendingCode" @click="sendEmailCode" class="resend-btn">
-                  {{ countdown > 0 ? `${countdown}s` : (codeSent ? '重新获取' : '发送验证码') }}
-                </button>
-              </div>
-              <button :disabled="loading" @click="handleVerifyCode" class="submit-btn">
-                {{ loading ? '登录中...' : '确认登录' }}
-              </button>
-              <button @click="step = 2" class="back-link">修改账号信息</button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -83,7 +60,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { Key, User, Lock, Mail } from 'lucide-vue-next'
+import { Key, User, Lock } from 'lucide-vue-next'
 import { authApi } from '@/api/auth'
 import { siteApi, type OwnerProfile } from '@/api/site'
 import { useAuthStore } from '@/stores/auth'
@@ -100,19 +77,11 @@ const { noticeVisible, noticeMessage, openNotice } = useNotice()
 
 const step = ref(1)
 const loading = ref(false)
-const countdown = ref(0)
 const ownerProfile = ref<OwnerProfile | null>(null)
-const ownerEmail = ref('')
-const codeSent = ref(false)
-const sendingCode = ref(false)
 
 const loginForm = reactive({
   username: '',
   password: ''
-})
-
-const verifyForm = reactive({
-  code: ''
 })
 
 onMounted(async () => {
@@ -131,9 +100,6 @@ const close = () => {
     step.value = 1
     loginForm.username = ''
     loginForm.password = ''
-    verifyForm.code = ''
-    ownerEmail.value = ''
-    codeSent.value = false
   }, 300)
 }
 
@@ -169,74 +135,16 @@ const handleOwnerLogin = async () => {
   loading.value = true
   try {
     const res = await authApi.ownerLogin(loginForm) as any
-    if (res.needEmailVerify) {
-      step.value = 3
-      ownerEmail.value = res.email || ''
-      verifyForm.code = ''
-      codeSent.value = false
-      countdown.value = 0
-    }
-  } catch (err: any) {
-    openNotice(err.message || '登录验证失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-const handleVerifyCode = async () => {
-  const normalizedCode = verifyForm.code.trim()
-  if (!normalizedCode) {
-    openNotice('请输入验证码')
-    return
-  }
-  if (!ownerEmail.value) {
-    openNotice('博主邮箱缺失，请重新登录')
-    return
-  }
-  loading.value = true
-  try {
-    const res = await authApi.verifyEmailCode({ email: ownerEmail.value, code: normalizedCode }) as any
     authStore.setTokens(res.token, res.refreshToken)
     await authStore.fetchUser()
     openNotice('登录成功')
     loading.value = false
     close()
   } catch (err: any) {
-    openNotice(err.message || '验证码错误')
+    openNotice(err.message || '登录验证失败')
   } finally {
     loading.value = false
   }
-}
-
-const sendEmailCode = async () => {
-  try {
-    if (!ownerEmail.value) {
-      openNotice('博主邮箱缺失，请重新登录')
-      return
-    }
-    sendingCode.value = true
-    await authApi.sendEmailCode(ownerEmail.value)
-    openNotice(codeSent.value ? '验证码已重发' : '验证码已发送')
-    codeSent.value = true
-    startCountdown()
-  } catch (err: any) {
-    openNotice(err.message || '发送失败')
-  } finally {
-    sendingCode.value = false
-  }
-}
-
-const startCountdown = () => {
-  countdown.value = 60
-  const timer = setInterval(() => {
-    countdown.value--
-    if (countdown.value <= 0) clearInterval(timer)
-  }, 1000)
-}
-
-const handleCodeInput = (e: Event) => {
-  const target = e.target as HTMLInputElement
-  verifyForm.code = target.value.replace(/\D/g, '')
 }
 </script>
 
@@ -392,9 +300,6 @@ const handleCodeInput = (e: Event) => {
 }
 .login-input:focus { border-color: #35bfab; }
 
-.code-input {
-  padding-right: 70px;
-}
 
 .submit-btn {
   background: #35bfab;
@@ -416,33 +321,6 @@ const handleCodeInput = (e: Event) => {
   cursor: pointer;
   text-decoration: underline;
   margin-top: 8px;
-}
-
-.email-hint {
-  font-size: 13px;
-  color: #64748b;
-  margin-bottom: 16px;
-}
-
-
-.resend-btn {
-  position: absolute;
-  right: 10px;
-  background: none;
-  border: none;
-  color: #94a3b8;
-  font-weight: 700;
-  font-size: 12px;
-  padding: 0;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.resend-btn:hover {
-  color: #35bfab;
-}
-.resend-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .hidden { display: none; }
