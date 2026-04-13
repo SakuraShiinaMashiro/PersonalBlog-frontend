@@ -107,7 +107,17 @@ const handleOAuth = (provider: string) => {
   // 保存当前路径以便回调后跳转回去
   const redirectPath = window.location.pathname + window.location.search
   localStorage.setItem('oauth_redirect_path', redirectPath)
-  window.location.href = authApi.getOAuthUrl(provider)
+  const width = 520
+  const height = 680
+  const left = window.screenX + (window.outerWidth - width) / 2
+  const top = window.screenY + (window.outerHeight - height) / 2
+  const features = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+  const popup = window.open(authApi.getOAuthUrl(provider), 'oauth_login', features)
+  if (!popup) {
+    openNotice('浏览器阻止了弹窗，请允许弹窗后重试')
+    return
+  }
+  popup.focus()
 }
 
 const onKeyFileChange = async (e: Event) => {
@@ -136,6 +146,7 @@ const handleOwnerLogin = async () => {
   try {
     const res = await authApi.ownerLogin(loginForm) as any
     authStore.setTokens(res.token, res.refreshToken)
+    authStore.setOAuthProvider(null)
     await authStore.fetchUser()
     openNotice('登录成功')
     loading.value = false

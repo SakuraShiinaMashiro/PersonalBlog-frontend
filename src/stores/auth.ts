@@ -13,6 +13,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserInfo | null>(null)
   const accessToken = ref(localStorage.getItem('access_token'))
   const refreshToken = ref(localStorage.getItem('refresh_token'))
+  const oauthProvider = ref(localStorage.getItem('oauth_provider'))
 
   const isLoggedIn = computed(() => !!accessToken.value)
   const isOwner = computed(() => user.value?.role === 'OWNER')
@@ -28,8 +29,19 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     accessToken.value = null
     refreshToken.value = null
+    oauthProvider.value = null
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
+    localStorage.removeItem('oauth_provider')
+  }
+
+  const setOAuthProvider = (provider: string | null) => {
+    oauthProvider.value = provider
+    if (provider) {
+      localStorage.setItem('oauth_provider', provider)
+    } else {
+      localStorage.removeItem('oauth_provider')
+    }
   }
 
   const showLoginDialog = ref(false)
@@ -48,10 +60,12 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     accessToken,
     refreshToken,
+    oauthProvider,
     isLoggedIn,
     isOwner,
     showLoginDialog,
     setTokens,
+    setOAuthProvider,
     clearAuth,
     fetchUser
   }

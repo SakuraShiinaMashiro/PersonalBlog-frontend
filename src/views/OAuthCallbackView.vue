@@ -43,12 +43,18 @@ onMounted(async () => {
   try {
     const res = await authApi.oauthCallback(provider, code, oauthState) as any
     authStore.setTokens(res.token, res.refreshToken)
+    authStore.setOAuthProvider(provider)
     await authStore.fetchUser()
-    
-    // 获取保存的重定向路径
+
     const redirectPath = localStorage.getItem('oauth_redirect_path') || '/'
     localStorage.removeItem('oauth_redirect_path')
-    
+
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: 'oauth-success', redirectPath }, window.location.origin)
+      window.close()
+      return
+    }
+
     router.push(redirectPath)
   } catch (err: any) {
     state.value = 'error'

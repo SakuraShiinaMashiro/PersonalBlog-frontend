@@ -8,16 +8,42 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppLoginDialog from '@/components/AppLoginDialog.vue'
 
 const authStore = useAuthStore()
+const router = useRouter()
+
+const handleOAuthMessage = async (event: MessageEvent) => {
+  if (event.origin !== window.location.origin) return
+  if (!event.data || event.data.type !== 'oauth-success') return
+
+  const accessToken = localStorage.getItem('access_token')
+  const refreshToken = localStorage.getItem('refresh_token')
+  if (accessToken && refreshToken) {
+    authStore.setTokens(accessToken, refreshToken)
+  }
+  authStore.setOAuthProvider(localStorage.getItem('oauth_provider'))
+  authStore.showLoginDialog = false
+  await authStore.fetchUser()
+
+  const redirectPath = typeof event.data.redirectPath === 'string'
+    ? event.data.redirectPath
+    : '/'
+  router.push(redirectPath)
+}
 
 onMounted(() => {
   if (authStore.accessToken) {
     authStore.fetchUser()
   }
+  window.addEventListener('message', handleOAuthMessage)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('message', handleOAuthMessage)
 })
 </script>
 

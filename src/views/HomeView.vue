@@ -107,7 +107,7 @@
       </div>
 
       <!-- ==================== 右列 ==================== -->
-      <div class="col-right">
+      <div class="col-right" ref="colRightRef">
         <!-- 写笔记按钮 -->
         <div class="card write-card">
           <router-link v-if="authStore.isOwner" to="/write" class="write-btn">
@@ -118,11 +118,39 @@
             <a href="https://github.com" target="_blank" class="social-icon" title="Github"><Github :size="16" /></a>
             <a href="https://bilibili.com" target="_blank" class="social-icon" title="Bilibili"><Youtube :size="16" /></a>
             <a href="mailto:czf@example.com" class="social-icon" title="Mail"><Mail :size="16" /></a>
-            <button class="social-icon" style="border:none; cursor:pointer;" :title="authStore.isLoggedIn ? '退出登录' : '登录'" @click="handleAccountClick">
-              <LogOut v-if="authStore.isLoggedIn" :size="16" />
+            <button
+              ref="accountButtonRef"
+              class="social-icon account-btn"
+              style="border:none; cursor:pointer;"
+              :title="authStore.isLoggedIn ? '账户' : '登录'"
+              @click.stop="handleAccountClick"
+            >
+              <img v-if="authStore.isLoggedIn" :src="accountAvatar" alt="avatar" class="account-avatar" />
               <User v-else :size="16" />
+              <span v-if="showProviderBadge" class="provider-badge">
+                <img :src="providerBadgeIcon" alt="provider" />
+              </span>
             </button>
           </div>
+        </div>
+
+        <div
+          v-if="showLogoutCard"
+          ref="logoutCardRef"
+          class="logout-card"
+          :style="logoutCardStyle"
+          @click.stop
+        >
+          <div class="logout-card-title">账户</div>
+          <div class="logout-card-user">
+            <img :src="accountAvatar" alt="avatar" class="logout-avatar" />
+            <div class="logout-user-name">{{ accountName }}</div>
+          </div>
+          <div class="logout-card-divider"></div>
+          <button class="logout-action" @click="doLogout">
+            <LogOut :size="16" />
+            登出
+          </button>
         </div>
 
         <!-- 数字时钟 -->
@@ -191,14 +219,6 @@
       </div>
     </div>
 
-
-    <AppConfirmDialog
-      v-model="showLogoutConfirm"
-      title="退出登录"
-      message="确认要退出当前账号吗？"
-      @confirm="doLogout"
-    />
-
     <AppNoticeDialog
       v-model="noticeVisible"
       :message="noticeMessage"
@@ -207,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   BookOpen, PenLine, Sparkles, Tv, Info,
   Edit3, Grid, Github, Youtube, Mail, Heart, User, LogOut
@@ -218,8 +238,11 @@ import { siteApi } from '@/api/site'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import AppNoticeDialog from '@/components/AppNoticeDialog.vue'
-import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
 import { useNotice } from '@/composables/useNotice'
+
+import githubIcon from '@/assets/icons/oauth/github.ico'
+import googleIcon from '@/assets/icons/oauth/google.ico'
+import sinaIcon from '@/assets/icons/oauth/weibo.ico'
 
 const { noticeVisible, noticeMessage, openNotice } = useNotice()
 
@@ -232,11 +255,38 @@ const showAboutModal = ref(false)
 const authStore = useAuthStore()
 const ownerProfile = ref({ username: 'Challenge', avatarUrl: '' })
 
-const showLogoutConfirm = ref(false)
+const showLogoutCard = ref(false)
+const logoutCardRef = ref<HTMLElement | null>(null)
+const accountButtonRef = ref<HTMLElement | null>(null)
+const colRightRef = ref<HTMLElement | null>(null)
+const logoutCardStyle = ref<Record<string, string>>({})
+
+const accountAvatar = computed(() => {
+  return authStore.user?.avatarUrl || '/default-avatar.png'
+})
+
+const accountName = computed(() => {
+  return authStore.user?.username || '用户'
+})
+
+const providerBadgeIcon = computed(() => {
+  const provider = authStore.oauthProvider
+  if (provider === 'github') return githubIcon
+  if (provider === 'google') return googleIcon
+  if (provider === 'sina') return sinaIcon
+  return ''
+})
+
+const showProviderBadge = computed(() => {
+  return authStore.user?.role === 'VISITOR' && !!providerBadgeIcon.value
+})
 
 const handleAccountClick = () => {
   if (authStore.isLoggedIn) {
-    showLogoutConfirm.value = true
+    showLogoutCard.value = !showLogoutCard.value
+    if (showLogoutCard.value) {
+      nextTick(updateLogoutCardPosition)
+    }
   } else {
     authStore.showLoginDialog = true
   }
@@ -249,8 +299,29 @@ const doLogout = async () => {
     } catch(e) {}
   }
   authStore.clearAuth()
-  showLogoutConfirm.value = false
+  showLogoutCard.value = false
   openNotice('已登出')
+}
+
+const handleDocumentClick = (event: MouseEvent) => {
+  if (!showLogoutCard.value) return
+  const target = event.target as Node
+  if (logoutCardRef.value && logoutCardRef.value.contains(target)) return
+  if (accountButtonRef.value && accountButtonRef.value.contains(target)) return
+  showLogoutCard.value = false
+}
+
+const updateLogoutCardPosition = () => {
+  if (!colRightRef.value || !accountButtonRef.value) return
+  const containerRect = colRightRef.value.getBoundingClientRect()
+  const buttonRect = accountButtonRef.value.getBoundingClientRect()
+  const cardWidth = 200
+  const top = buttonRect.bottom - containerRect.top + 8
+  const left = Math.max(0, buttonRect.right - containerRect.left - cardWidth)
+  logoutCardStyle.value = {
+    top: `${top}px`,
+    left: `${left}px`
+  }
 }
 
 // ======= 时钟 =======
@@ -366,10 +437,13 @@ onMounted(async () => {
     const profile = await siteApi.getOwnerProfile()
     ownerProfile.value = profile as any
   } catch (e) {}
+
+  document.addEventListener('click', handleDocumentClick)
 })
 
 onUnmounted(() => {
   clearInterval(timeInterval)
+  document.removeEventListener('click', handleDocumentClick)
 })
 </script>
 
@@ -668,6 +742,106 @@ onUnmounted(() => {
   transform: translateY(-1px);
 }
 
+.account-btn {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+}
+
+.account-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.provider-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.provider-badge img {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.logout-card {
+  position: absolute;
+  width: 200px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 14px;
+  padding: 12px 12px 10px;
+  box-shadow: 0 12px 28px rgba(22, 45, 47, 0.18);
+  z-index: 12;
+}
+
+.logout-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5a8c8f;
+  margin-bottom: 10px;
+}
+
+.logout-card-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.logout-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.logout-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2e4a4e;
+}
+
+.logout-card-divider {
+  height: 1px;
+  background: rgba(0, 0, 0, 0.05);
+  margin: 4px 0 6px;
+}
+
+.logout-action {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2e4a4e;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.logout-action:hover {
+  background: rgba(53, 191, 171, 0.12);
+}
+
+
 /* 随机推荐 */
 .recommend-card {
   padding: 16px;
@@ -713,6 +887,7 @@ onUnmounted(() => {
 
 /* ====== 右列 ====== */
 .col-right {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 16px;
